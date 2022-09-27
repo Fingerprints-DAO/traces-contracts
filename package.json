@@ -13,7 +13,9 @@
     "run:docs": "hardhat compile",
     "compile": "hardhat compile && tsc"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.7.3"
+  },
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
     "@ethersproject/providers": "^5.4.7",

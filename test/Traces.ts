@@ -1,5 +1,5 @@
-import { time, loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs'
+import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
+// import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 
@@ -18,10 +18,10 @@ describe('Traces', function () {
   }
 
   describe('Deployment', function () {
-    it('Should set the right unlockTime', async function () {
-      await loadFixture(deployFixture)
+    it('deploys the contract extending ERC721', async function () {
+      const { trace } = await loadFixture(deployFixture)
 
-      expect(1).to.equal(1)
+      expect(await trace.totalSupply()).to.be.not.reverted
     })
   })
 })
