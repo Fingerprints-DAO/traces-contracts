@@ -7,8 +7,14 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 // import "hardhat/console.sol";
 
 contract Traces is ERC721Enumerable, Ownable {
-  constructor(address _adminAddress) ERC721('Traces', 'Traces') {
+  // Address where NFTs are. These NFTs will be allowed to be wrapped
+  address public vaultAddress;
+
+  constructor(address _adminAddress, address _vaultAddress)
+    ERC721('Traces', 'Traces')
+  {
     transferOwnership(_adminAddress);
+    vaultAddress = _vaultAddress;
   }
 
   function supportsInterface(bytes4 interfaceId)
