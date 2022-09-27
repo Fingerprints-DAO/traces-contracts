@@ -17,6 +17,14 @@ contract Traces is ERC721Enumerable, Ownable {
     vaultAddress = _vaultAddress;
   }
 
+  /**
+   * @notice Change Vault Address
+   * @dev Only owner. It set a new address to vaultAddress variable
+   */
+  function setVaultAddress(address _vaultAddress) public onlyOwner {
+    vaultAddress = _vaultAddress;
+  }
+
   function supportsInterface(bytes4 interfaceId)
     public
     view

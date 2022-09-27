@@ -38,4 +38,13 @@ describe('Traces', function () {
       )
     })
   })
+
+  describe('Traces', function () {
+    it('returns error when call setVaultAddress without right permission', async function () {
+      const { trace } = await loadFixture(deployFixture)
+
+      await expect(trace.setVaultAddress(faker.finance.ethereumAddress())).to
+        .reverted
+    })
+  })
 })
