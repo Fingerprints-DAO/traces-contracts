@@ -21,7 +21,7 @@ describe('Traces', function () {
     it('deploys the contract extending ERC721', async function () {
       const { trace } = await loadFixture(deployFixture)
 
-      expect(await trace.totalSupply()).to.be.not.reverted
+      expect(await trace.totalSupply()).to.eq(0)
     })
   })
 })
