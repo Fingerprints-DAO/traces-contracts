@@ -12,7 +12,7 @@ describe('Traces', function () {
     const [owner, otherAccount] = await ethers.getSigners()
 
     const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy()
+    const trace = await Traces.deploy(otherAccount.address)
 
     return { trace, owner, otherAccount }
   }
@@ -22,6 +22,11 @@ describe('Traces', function () {
       const { trace } = await loadFixture(deployFixture)
 
       expect(await trace.totalSupply()).to.eq(0)
+    })
+    it('transfer contract ownership to owner address sent', async function () {
+      const { trace, otherAccount } = await loadFixture(deployFixture)
+
+      expect(await trace.owner()).to.eq(otherAccount.address)
     })
   })
 })

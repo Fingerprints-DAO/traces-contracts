@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 
-contract Traces is ERC721Enumerable {
-  constructor() ERC721('Traces', 'Traces') {}
+contract Traces is ERC721Enumerable, Ownable {
+  constructor(address _adminAddress) ERC721('Traces', 'Traces') {
+    transferOwnership(_adminAddress);
+  }
 
   function supportsInterface(bytes4 interfaceId)
     public
