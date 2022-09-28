@@ -4,6 +4,10 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import faker from 'faker'
 
+enum ERROR {
+  ONLY_ADMIN = 'Ownable: caller is not the owner',
+}
+
 describe('Traces', function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -40,7 +44,7 @@ describe('Traces', function () {
   })
 
   describe('Traces', function () {
-    it('returns error when call setVaultAddress without right permission', async function () {
+    it('returns error when calling setVaultAddress without right permission', async function () {
       const { trace } = await loadFixture(deployFixture)
 
       await expect(trace.setVaultAddress(faker.finance.ethereumAddress())).to
@@ -56,5 +60,49 @@ describe('Traces', function () {
         new RegExp(newVaultAddress, 'i')
       )
     })
+  })
+
+  describe('Traces admin', function () {
+    it('returns error when calling addToken without right permission', async function () {
+      const { deployer, trace } = await loadFixture(deployFixture)
+      const tokenAddress = faker.finance.ethereumAddress()
+      const tokenId = faker.datatype.number(10_000)
+      const minStake = faker.datatype.number(10_000)
+
+      await expect(
+        trace.connect(deployer).addToken(tokenAddress, tokenId, minStake)
+      ).to.revertedWith(ERROR.ONLY_ADMIN)
+    })
+    it('doesnt give error when calling addToken with admin permission', async function () {
+      const { owner, trace } = await loadFixture(deployFixture)
+      const conn = trace.connect(owner)
+      const tokenAddress = faker.finance.ethereumAddress()
+      const tokenId = faker.datatype.number(10_000)
+      const minStake = faker.datatype.number(10_000)
+
+      await expect(conn.addToken(tokenAddress, tokenId, minStake)).to.not
+        .reverted
+    })
+    it('returns token struct with right data after calling addToken', async function () {
+      const { owner, trace } = await loadFixture(deployFixture)
+      const conn = trace.connect(owner)
+      const tokenAddress = faker.finance.ethereumAddress()
+      const tokenId = faker.datatype.number(10_000)
+      const minStake = faker.datatype.number(10_000)
+
+      await conn.addToken(tokenAddress, tokenId, minStake)
+
+      expect((await conn.enabledTokens(tokenAddress, tokenId)).tokenId).to.eq(
+        tokenId
+      )
+      expect(
+        (await conn.enabledTokens(tokenAddress, tokenId)).tokenAddress
+      ).to.match(new RegExp(tokenAddress, 'i'))
+      expect(
+        (await conn.enabledTokens(tokenAddress, tokenId)).minStakeValue
+      ).to.eq(minStake)
+    })
+    // event added
+    // getUri with proxy string
   })
 })
