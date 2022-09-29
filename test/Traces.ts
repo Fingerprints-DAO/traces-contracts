@@ -120,7 +120,7 @@ describe('Traces', function () {
       expect(event?.args?.tokenId).to.eq(tokenId)
       expect(event?.event).to.eq('TokenAdded')
     })
-    it.only('returns error if token is already added', async function () {
+    it('returns error if token is already added', async function () {
       const { owner, trace } = await loadFixture(deployFixture)
       const conn = trace.connect(owner)
       const [tokenAddress, tokenId, minStake] = generateTokenData()
