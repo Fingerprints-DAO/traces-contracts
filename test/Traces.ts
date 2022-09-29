@@ -23,6 +23,15 @@ describe('Traces', function () {
     return { trace, deployer, owner, FPVaultAddress }
   }
 
+  // Must be returned in the same order of addToken args
+  function generateTokenData({
+    tokenAddress = faker.finance.ethereumAddress(),
+    tokenId = faker.datatype.number(10_000),
+    minStake = faker.datatype.number(10_000),
+  } = {}): [string, number, number] {
+    return [tokenAddress, tokenId, minStake]
+  }
+
   describe('Traces Deployment', function () {
     it('deploys the contract extending ERC721', async function () {
       const { trace } = await loadFixture(deployFixture)
@@ -65,30 +74,23 @@ describe('Traces', function () {
   describe('Traces admin', function () {
     it('returns error when calling addToken without right permission', async function () {
       const { deployer, trace } = await loadFixture(deployFixture)
-      const tokenAddress = faker.finance.ethereumAddress()
-      const tokenId = faker.datatype.number(10_000)
-      const minStake = faker.datatype.number(10_000)
+      const args = generateTokenData()
 
-      await expect(
-        trace.connect(deployer).addToken(tokenAddress, tokenId, minStake)
-      ).to.revertedWith(ERROR.ONLY_ADMIN)
+      await expect(trace.connect(deployer).addToken(...args)).to.revertedWith(
+        ERROR.ONLY_ADMIN
+      )
     })
     it('doesnt give error when calling addToken with admin permission', async function () {
       const { owner, trace } = await loadFixture(deployFixture)
       const conn = trace.connect(owner)
-      const tokenAddress = faker.finance.ethereumAddress()
-      const tokenId = faker.datatype.number(10_000)
-      const minStake = faker.datatype.number(10_000)
+      const args = generateTokenData()
 
-      await expect(conn.addToken(tokenAddress, tokenId, minStake)).to.not
-        .reverted
+      await expect(conn.addToken(...args)).to.not.reverted
     })
     it('returns token struct with right data after calling addToken', async function () {
       const { owner, trace } = await loadFixture(deployFixture)
       const conn = trace.connect(owner)
-      const tokenAddress = faker.finance.ethereumAddress()
-      const tokenId = faker.datatype.number(10_000)
-      const minStake = faker.datatype.number(10_000)
+      const [tokenAddress, tokenId, minStake] = generateTokenData()
 
       await conn.addToken(tokenAddress, tokenId, minStake)
 
