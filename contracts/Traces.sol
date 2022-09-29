@@ -20,6 +20,12 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 minStakeValue;
   }
 
+  event TokenAdded(
+    address indexed tokenAddress,
+    uint256 indexed tokenId,
+    uint256
+  );
+
   constructor(address _adminAddress, address _vaultAddress)
     ERC721('Traces', 'Traces')
   {
@@ -53,6 +59,8 @@ contract Traces is ERC721Enumerable, Ownable {
     token.minStakeValue = _minStakeValue;
 
     enabledTokens[_tokenAddress][_tokenId] = token;
+
+    emit TokenAdded(_tokenAddress, _tokenId, _minStakeValue);
   }
 
   function supportsInterface(bytes4 interfaceId)

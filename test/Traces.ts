@@ -104,7 +104,25 @@ describe('Traces', function () {
         (await conn.enabledTokens(tokenAddress, tokenId)).minStakeValue
       ).to.eq(minStake)
     })
-    // event added
+    it('returns token struct with right data after calling addToken', async function () {
+      const { owner, trace } = await loadFixture(deployFixture)
+      const conn = trace.connect(owner)
+      const [tokenAddress, tokenId, minStake] = generateTokenData()
+
+      const tx = await conn.addToken(tokenAddress, tokenId, minStake)
+      const { events } = await tx.wait()
+      //@ts-ignore
+      const [event] = events
+
+      expect(event?.args).to.deep.eq([tokenAddress, tokenId, minStake])
+      expect(event?.args?.tokenAddress).to.match(RegExp(tokenAddress, 'i'))
+      expect(event?.args?.tokenId).to.eq(tokenId)
+      expect(event?.event).to.eq('TokenAdded')
+    })
+    // mint token
+    // check if wrapped token exists
+    // unstaked wtoken
+    // delete unstaked wtoken
     // getUri with proxy string
   })
 })
