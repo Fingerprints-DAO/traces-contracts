@@ -46,9 +46,13 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _tokenId,
     uint256 _minStakeValue
   ) public onlyOwner {
-    enabledTokens[_tokenAddress][_tokenId].tokenAddress = _tokenAddress;
-    enabledTokens[_tokenAddress][_tokenId].tokenId = _tokenId;
-    enabledTokens[_tokenAddress][_tokenId].minStakeValue = _minStakeValue;
+    WrappedToken memory token;
+
+    token.tokenAddress = _tokenAddress;
+    token.tokenId = _tokenId;
+    token.minStakeValue = _minStakeValue;
+
+    enabledTokens[_tokenAddress][_tokenId] = token;
   }
 
   function supportsInterface(bytes4 interfaceId)
