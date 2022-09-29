@@ -6,6 +6,7 @@ import faker from 'faker'
 
 enum ERROR {
   ONLY_ADMIN = 'Ownable: caller is not the owner',
+  DUPLICATED_TOKEN = 'Token: already exists',
 }
 
 describe('Traces', function () {
@@ -119,8 +120,19 @@ describe('Traces', function () {
       expect(event?.args?.tokenId).to.eq(tokenId)
       expect(event?.event).to.eq('TokenAdded')
     })
-    // mint token
+    it.only('returns error if token is already added', async function () {
+      const { owner, trace } = await loadFixture(deployFixture)
+      const conn = trace.connect(owner)
+      const [tokenAddress, tokenId, minStake] = generateTokenData()
+
+      await conn.addToken(tokenAddress, tokenId, minStake)
+
+      await expect(
+        conn.addToken(tokenAddress, tokenId, minStake)
+      ).to.revertedWithCustomError(trace, 'DuplicatedToken')
+    })
     // check if wrapped token exists
+    // mint token
     // unstaked wtoken
     // delete unstaked wtoken
     // getUri with proxy string

@@ -6,6 +6,8 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 // Uncomment this line to use console.log
 // import 'hardhat/console.sol';
 
+error DuplicatedToken(address tokenAddress, uint256 tokenId);
+
 contract Traces is ERC721Enumerable, Ownable {
   // Address where NFTs are. These NFTs will be allowed to be wrapped
   address public vaultAddress;
@@ -52,6 +54,10 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _tokenId,
     uint256 _minStakeValue
   ) public onlyOwner {
+    if (enabledTokens[_tokenAddress][_tokenId].tokenId == _tokenId) {
+      revert DuplicatedToken(_tokenAddress, _tokenId);
+    }
+
     WrappedToken memory token;
 
     token.tokenAddress = _tokenAddress;
