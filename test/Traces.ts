@@ -6,34 +6,33 @@ import faker from 'faker'
 
 enum ERROR {
   ONLY_ADMIN = 'Ownable: caller is not the owner',
-  DUPLICATED_TOKEN = 'Token: already exists',
+  DUPLICATED_TOKEN = 'DuplicatedToken',
+  NOT_OWNER_OF_TOKEN = 'NotOwnerOfToken',
+  INVALID_721_CONTRACT = 'Invalid721Contract',
 }
 
-describe('Traces', function () {
+// Must be returned in the same order of addToken args
+function generateTokenData({
+  tokenAddress = faker.finance.ethereumAddress(),
+  tokenId = faker.datatype.number(10_000),
+  minStake = faker.datatype.number(10_000),
+} = {}): [string, number, number] {
+  return [tokenAddress, tokenId, minStake]
+}
+
+describe('Traces basic', function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
   async function deployFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [deployer, owner, minter1] = await ethers.getSigners()
+    const [deployer, owner] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
 
     const Traces = await ethers.getContractFactory('Traces')
     const trace = await Traces.deploy(owner.address, FPVaultAddress)
 
-    const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
-    const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
-
-    return { trace, deployer, owner, FPVaultAddress, erc721mock, minter1 }
-  }
-
-  // Must be returned in the same order of addToken args
-  function generateTokenData({
-    tokenAddress = faker.finance.ethereumAddress(),
-    tokenId = faker.datatype.number(10_000),
-    minStake = faker.datatype.number(10_000),
-  } = {}): [string, number, number] {
-    return [tokenAddress, tokenId, minStake]
+    return { trace, deployer, owner, FPVaultAddress }
   }
 
   describe('Traces Deployment', function () {
@@ -84,26 +83,56 @@ describe('Traces', function () {
         ERROR.ONLY_ADMIN
       )
     })
+  })
+})
+
+describe('Traces', function () {
+  // We define a fixture to reuse the same setup in every test.
+  // We use loadFixture to run this setup once, snapshot that state,
+  // and reset Hardhat Network to that snapshot in every test.
+  async function deployFixtureWith721() {
+    // Contracts are deployed using the first signer/account by default
+    const [deployer, owner, minter1] = await ethers.getSigners()
+    const FPVaultAddress = faker.finance.ethereumAddress()
+
+    const Traces = await ethers.getContractFactory('Traces')
+    const trace = await Traces.deploy(owner.address, FPVaultAddress)
+
+    const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
+    const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
+
+    const tokenData = generateTokenData({ tokenAddress: erc721mock.address })
+
+    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenData[1])
+
+    return {
+      trace,
+      deployer,
+      owner,
+      FPVaultAddress,
+      erc721mock,
+      minter1,
+      tokenData,
+    }
+  }
+
+  describe('Traces admin', function () {
     it('doesnt give error when calling addToken with admin permission', async function () {
-      const { erc721mock, minter1, owner, trace, FPVaultAddress } =
-        await loadFixture(deployFixture)
+      const { owner, trace, tokenData } = await loadFixture(
+        deployFixtureWith721
+      )
       const conn = trace.connect(owner)
-      const args = generateTokenData({ tokenAddress: erc721mock.address })
 
-      await erc721mock.connect(minter1).mint(FPVaultAddress, args[1])
-
-      await expect(conn.addToken(...args)).to.not.reverted
+      await expect(conn.addToken(...tokenData)).to.not.reverted
     })
     it('returns token struct with right data after calling addToken', async function () {
-      const { erc721mock, minter1, owner, trace, FPVaultAddress } =
-        await loadFixture(deployFixture)
+      const { owner, trace, tokenData } = await loadFixture(
+        deployFixtureWith721
+      )
       const conn = trace.connect(owner)
-      const [tokenAddress, tokenId, minStake] = generateTokenData({
-        tokenAddress: erc721mock.address,
-      })
+      const [tokenAddress, tokenId, minStake] = tokenData
 
-      await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
-      await conn.addToken(tokenAddress, tokenId, minStake)
+      await conn.addToken(...tokenData)
 
       expect((await conn.enabledTokens(tokenAddress, tokenId)).tokenId).to.eq(
         tokenId
@@ -116,12 +145,11 @@ describe('Traces', function () {
       ).to.eq(minStake)
     })
     it('returns TokenAdded event after calling addToken', async function () {
-      const { erc721mock, minter1, owner, trace, FPVaultAddress } =
-        await loadFixture(deployFixture)
+      const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+        await loadFixture(deployFixtureWith721)
       const conn = trace.connect(owner)
-      const [tokenAddress, tokenId, minStake] = generateTokenData({
-        tokenAddress: erc721mock.address,
-      })
+      const [tokenAddress, _, minStake] = tokenData
+      const tokenId = 2
 
       await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
       const tx = await conn.addToken(tokenAddress, tokenId, minStake)
@@ -135,32 +163,22 @@ describe('Traces', function () {
       expect(event?.event).to.eq('TokenAdded')
     })
     it('returns error if token is already added', async function () {
-      const { erc721mock, minter1, owner, trace, FPVaultAddress } =
-        await loadFixture(deployFixture)
+      const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+        await loadFixture(deployFixtureWith721)
       const conn = trace.connect(owner)
-      const [tokenAddress, tokenId, minStake] = generateTokenData({
-        tokenAddress: erc721mock.address,
-      })
+      const [tokenAddress, _, minStake] = tokenData
+      const tokenId = 2
 
       await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
       await conn.addToken(tokenAddress, tokenId, minStake)
 
       await expect(
         conn.addToken(tokenAddress, tokenId, minStake)
-      ).to.revertedWithCustomError(trace, 'DuplicatedToken')
-    })
-    it('returns error if token address is not a ERC721 contract', async function () {
-      const { owner, trace } = await loadFixture(deployFixture)
-      const conn = trace.connect(owner)
-      const [tokenAddress, tokenId, minStake] = generateTokenData()
-
-      await expect(
-        conn.addToken(tokenAddress, tokenId, minStake)
-      ).to.revertedWithCustomError(trace, 'Invalid721Contract')
+      ).to.revertedWithCustomError(trace, ERROR.DUPLICATED_TOKEN)
     })
     it('returns error if FP vault is not owner of the sent token', async function () {
       const { erc721mock, minter1, owner, trace } = await loadFixture(
-        deployFixture
+        deployFixtureWith721
       )
       const [tokenId, minStake] = generateTokenData()
       const conn = trace.connect(owner)
@@ -171,7 +189,7 @@ describe('Traces', function () {
 
       await expect(
         conn.addToken(erc721mock.address, tokenId, minStake)
-      ).to.revertedWithCustomError(trace, 'NotOwnerOfToken')
+      ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
     })
     // mint wnft
     // unstaked wtoken
