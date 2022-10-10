@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
+import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 // Uncomment this line to use console.log
-// import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 error DuplicatedToken(address tokenAddress, uint256 tokenId);
+error NotOwnerOfToken(address tokenAddress, uint256 tokenId, address vault);
+error Invalid721Contract(address tokenAddress);
 
 contract Traces is ERC721Enumerable, Ownable {
+  using ERC165Checker for address;
+  bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
+
   // Address where NFTs are. These NFTs will be allowed to be wrapped
   address public vaultAddress;
 
@@ -36,6 +44,17 @@ contract Traces is ERC721Enumerable, Ownable {
   }
 
   /**
+   * @notice Validate contract address
+   * @dev Check if the address sent is a contract and an extension of ERC721
+   */
+  modifier _isERC721Contract(address _tokenAddress) {
+    if (!_tokenAddress.supportsInterface(IID_IERC721)) {
+      revert Invalid721Contract(_tokenAddress);
+    }
+    _;
+  }
+
+  /**
    * @notice Change Vault Address
    * @dev Only owner. It sets a new address to vaultAddress variable
    */
@@ -53,7 +72,10 @@ contract Traces is ERC721Enumerable, Ownable {
     address _tokenAddress,
     uint256 _tokenId,
     uint256 _minStakeValue
-  ) public onlyOwner {
+  ) public onlyOwner _isERC721Contract(_tokenAddress) {
+    if (IERC721(_tokenAddress).ownerOf((_tokenId)) != vaultAddress) {
+      revert NotOwnerOfToken(_tokenAddress, _tokenId, vaultAddress);
+    }
     if (enabledTokens[_tokenAddress][_tokenId].tokenId == _tokenId) {
       revert DuplicatedToken(_tokenAddress, _tokenId);
     }
