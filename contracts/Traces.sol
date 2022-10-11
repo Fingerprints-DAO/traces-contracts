@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
+import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
@@ -12,6 +13,13 @@ import 'hardhat/console.sol';
 error DuplicatedToken(address tokenAddress, uint256 tokenId);
 error NotOwnerOfToken(address tokenAddress, uint256 tokenId, address vault);
 error Invalid721Contract(address tokenAddress);
+error InvalidAmount(
+  address tokenAddress,
+  uint256 tokenId,
+  uint256 expectedAmount,
+  uint256 amountSent
+);
+error TransferNotAllowed(uint256 expectedAmount, uint256 amountSent);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
@@ -19,6 +27,9 @@ contract Traces is ERC721Enumerable, Ownable {
 
   // Address where NFTs are. These NFTs will be allowed to be wrapped
   address public vaultAddress;
+
+  // Address of ERC20 token accepted
+  address public allowedTokenAddress;
 
   // Enabled tokens to be wrapped
   // Mapping [tokenAddress][tokenId] => WrappedToken
@@ -36,11 +47,14 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256
   );
 
-  constructor(address _adminAddress, address _vaultAddress)
-    ERC721('Traces', 'Traces')
-  {
+  constructor(
+    address _adminAddress,
+    address _vaultAddress,
+    address _tokenAddress
+  ) ERC721('Traces', 'Traces') {
     transferOwnership(_adminAddress);
     vaultAddress = _vaultAddress;
+    allowedTokenAddress = _tokenAddress;
   }
 
   /**
@@ -89,6 +103,36 @@ contract Traces is ERC721Enumerable, Ownable {
     enabledTokens[_tokenAddress][_tokenId] = token;
 
     emit TokenAdded(_tokenAddress, _tokenId, _minStakeValue);
+  }
+
+  /**
+   * @notice Outbid a wrapped NFT
+   * @dev It transfer the WNFT to msg.sender and stake the user erc20 token
+   */
+  function outbid(
+    address _tokenAddress,
+    uint256 _tokenId,
+    uint256 _amount
+  ) public {
+    WrappedToken memory token = enabledTokens[_tokenAddress][_tokenId];
+    uint256 allowedToTransfer = IERC20(allowedTokenAddress).allowance(
+      msg.sender,
+      address(this)
+    );
+
+    if (
+      allowedToTransfer < _amount || allowedToTransfer < token.minStakeValue
+    ) {
+      revert TransferNotAllowed(_amount, allowedToTransfer);
+    }
+    if (token.minStakeValue > _amount) {
+      revert InvalidAmount(
+        _tokenAddress,
+        _tokenId,
+        token.minStakeValue,
+        _amount
+      );
+    }
   }
 
   function supportsInterface(bytes4 interfaceId)

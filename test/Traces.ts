@@ -3,20 +3,23 @@ import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import faker from 'faker'
+import { BigNumber } from 'ethers'
 
 enum ERROR {
   ONLY_ADMIN = 'Ownable: caller is not the owner',
   DUPLICATED_TOKEN = 'DuplicatedToken',
   NOT_OWNER_OF_TOKEN = 'NotOwnerOfToken',
   INVALID_721_CONTRACT = 'Invalid721Contract',
+  TRANSFER_NOT_ALLOWED = 'TransferNotAllowed',
+  INVALID_AMOUNT = 'InvalidAmount',
 }
 
 // Must be returned in the same order of addToken args
 function generateTokenData({
   tokenAddress = faker.finance.ethereumAddress(),
   tokenId = faker.datatype.number(10_000),
-  minStake = faker.datatype.number(10_000),
-} = {}): [string, number, number] {
+  minStake = BigNumber.from(faker.datatype.number(10_000)),
+} = {}): [string, number, BigNumber] {
   return [tokenAddress, tokenId, minStake]
 }
 
@@ -29,8 +32,15 @@ describe('Traces basic', function () {
     const [deployer, owner] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
 
+    const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
+    const erc20mock = await ERC20Mock.deploy('prints', '$prints', 0)
+
     const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy(owner.address, FPVaultAddress)
+    const trace = await Traces.deploy(
+      owner.address,
+      FPVaultAddress,
+      erc20mock.address
+    )
 
     return { trace, deployer, owner, FPVaultAddress }
   }
@@ -84,8 +94,15 @@ describe('Traces admin', function () {
     const [deployer, owner, minter1] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
 
+    const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
+    const erc20mock = await ERC20Mock.deploy('prints', '$prints', 0)
+
     const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy(owner.address, FPVaultAddress)
+    const trace = await Traces.deploy(
+      owner.address,
+      FPVaultAddress,
+      erc20mock.address
+    )
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
     const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
@@ -194,31 +211,81 @@ describe('Traces functionality', function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deployFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [deployer, owner, minter1] = await ethers.getSigners()
+    const [deployer, owner, minter1, staker1] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
-
-    const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy(owner.address, FPVaultAddress)
+    const amount = 1_000_000
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
     const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
 
-    const tokenData = generateTokenData({ tokenAddress: erc721mock.address })
+    const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
+    const erc20mock = await ERC20Mock.deploy('prints', '$prints', amount)
 
-    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenData[1])
+    const Traces = await ethers.getContractFactory('Traces')
+    const traces = await Traces.deploy(
+      owner.address,
+      FPVaultAddress,
+      erc20mock.address
+    )
+
+    const tokenData = generateTokenData({
+      tokenAddress: erc721mock.address,
+      minStake: ethers.utils.parseUnits('100000', 18),
+    })
+
+    await Promise.all([
+      erc721mock.connect(minter1).mint(FPVaultAddress, tokenData[1]),
+      erc20mock.connect(staker1).mint(staker1.address, amount),
+    ])
 
     return {
-      trace,
+      traces,
       deployer,
       owner,
       FPVaultAddress,
       erc721mock,
       minter1,
       tokenData,
+      erc20mock,
+      amount,
+      staker1,
     }
   }
 
   describe('Mint an WNFT', async function () {
+    describe('returns error when: ', async function () {
+      it('user doesnt executed allowance to transfer $ERC20token to stake', async function () {
+        const { traces, owner, tokenData, staker1 } = await loadFixture(
+          deployFixture
+        )
+        const [contractAddress, nftId] = tokenData
+
+        await traces.connect(owner).addToken(...tokenData)
+
+        await expect(
+          traces
+            .connect(staker1)
+            .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
+        ).to.revertedWithCustomError(traces, ERROR.TRANSFER_NOT_ALLOWED)
+      })
+      it('user doesnt have enough $ERC20token to stake', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+
+        await traces.connect(owner).addToken(...tokenData)
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+
+        await expect(
+          traces
+            .connect(staker1)
+            .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
+        ).to.revertedWithCustomError(traces, ERROR.INVALID_AMOUNT)
+      })
+      // it('NFT is not listed', async function () {})
+      // it('NFT is on guarantee hold time', async function () {})
+    })
+    // it('mints a wrapped nft to the user', async function () {})
     // mint wnft
   })
   // unstaked wtoken
