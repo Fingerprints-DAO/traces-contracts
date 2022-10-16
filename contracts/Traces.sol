@@ -19,7 +19,7 @@ error InvalidAmount(
   uint256 expectedAmount,
   uint256 amountSent
 );
-error TransferNotAllowed(uint256 expectedAmount, uint256 amountSent);
+error TransferNotAllowed(uint256 expectedAmount);
 error InvalidTokenId(address tokenAddress, uint256 tokenId);
 error HoldPeriod(address tokenAddress, uint256 tokenId);
 
@@ -70,6 +70,23 @@ contract Traces is ERC721Enumerable, Ownable {
       revert Invalid721Contract(_tokenAddress);
     }
     _;
+  }
+
+  function isHoldPeriod(uint256 timestamp) public view returns (bool) {
+    return timestamp > block.timestamp;
+  }
+
+  function hasEnoughToStake(uint256 _amount, uint256 _minStake)
+    public
+    view
+    returns (bool)
+  {
+    uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
+      msg.sender,
+      address(this)
+    );
+
+    return allowedToTransfer < _amount || allowedToTransfer < _minStake;
   }
 
   /**
@@ -129,16 +146,9 @@ contract Traces is ERC721Enumerable, Ownable {
     if (token.tokenId != _tokenId)
       revert InvalidTokenId(_tokenAddress, _tokenId);
 
-    uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
-      msg.sender,
-      address(this)
-    );
+    if (hasEnoughToStake(_amount, token.minStakeValue))
+      revert TransferNotAllowed(_amount);
 
-    if (
-      allowedToTransfer < _amount || allowedToTransfer < token.minStakeValue
-    ) {
-      revert TransferNotAllowed(_amount, allowedToTransfer);
-    }
     if (token.minStakeValue > _amount) {
       revert InvalidAmount(
         _tokenAddress,
@@ -147,6 +157,8 @@ contract Traces is ERC721Enumerable, Ownable {
         _amount
       );
     }
+    if (isHoldPeriod(token.holdPeriodTimestamp))
+      revert HoldPeriod(_tokenAddress, _tokenId);
 
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
   }

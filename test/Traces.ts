@@ -5,6 +5,7 @@ import faker from 'faker'
 
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
+import dayjs from 'dayjs'
 
 describe('Traces basic', function () {
   // We define a fixture to reuse the same setup in every test.
@@ -289,19 +290,19 @@ describe('Traces functionality', function () {
             .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
         ).to.revertedWithCustomError(traces, ERROR.INVALID_TOKEN_ID)
       })
-      // it('NFT is on guarantee hold time', async function () {
-      //   const { traces, owner, tokenData, staker1, erc20mock } =
-      //     await loadFixture(deployFixture)
-      //   const [contractAddress, nftId, amount] = tokenData
+      it('NFT is on guarantee hold time', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
 
-      //   await Promise.all([
-      //     traces.connect(owner).addToken(...tokenData),
-      //     erc20mock.connect(staker1).approve(traces.address, amount),
-      //   ])
-      //   await expect(
-      //     traces.connect(staker1).outbid(contractAddress, nftId, amount)
-      //   ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
-      // })
+        await Promise.all([
+          traces.connect(owner).addToken(...tokenData),
+          erc20mock.connect(staker1).approve(traces.address, amount),
+        ])
+        await expect(
+          traces.connect(staker1).outbid(contractAddress, nftId, amount)
+        ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
+      })
     })
     it('stakes the user token and increase contract balance', async function () {
       const { traces, owner, tokenData, staker1, erc20mock } =
@@ -310,7 +311,7 @@ describe('Traces functionality', function () {
       const tracesBalance = await erc20mock.balanceOf(traces.address)
 
       await Promise.all([
-        traces.connect(owner).addToken(...tokenData),
+        traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
         erc20mock.connect(staker1).approve(traces.address, amount),
       ])
       await traces.connect(staker1).outbid(contractAddress, nftId, amount)
@@ -326,7 +327,9 @@ describe('Traces functionality', function () {
       const userBalance = await erc20mock.balanceOf(staker1.address)
 
       await Promise.all([
-        traces.connect(owner).addToken(...tokenData),
+        traces
+          .connect(owner)
+          .addToken(contractAddress, nftId, amount, dayjs().unix()),
         erc20mock.connect(staker1).approve(traces.address, amount),
       ])
       await traces.connect(staker1).outbid(contractAddress, nftId, amount)
