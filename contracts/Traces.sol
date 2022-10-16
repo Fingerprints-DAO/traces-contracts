@@ -21,6 +21,7 @@ error InvalidAmount(
 );
 error TransferNotAllowed(uint256 expectedAmount, uint256 amountSent);
 error InvalidTokenId(address tokenAddress, uint256 tokenId);
+error HoldPeriod(address tokenAddress, uint256 tokenId);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
@@ -40,11 +41,13 @@ contract Traces is ERC721Enumerable, Ownable {
     address tokenAddress;
     uint256 tokenId;
     uint256 minStakeValue;
+    uint256 holdPeriodTimestamp;
   }
 
   event TokenAdded(
     address indexed tokenAddress,
     uint256 indexed tokenId,
+    uint256,
     uint256
   );
 
@@ -86,7 +89,8 @@ contract Traces is ERC721Enumerable, Ownable {
   function addToken(
     address _tokenAddress,
     uint256 _tokenId,
-    uint256 _minStakeValue
+    uint256 _minStakeValue,
+    uint256 _holdPeriodTimestamp
   ) public onlyOwner _isERC721Contract(_tokenAddress) {
     if (IERC721(_tokenAddress).ownerOf((_tokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_tokenAddress, _tokenId, vaultAddress);
@@ -100,10 +104,16 @@ contract Traces is ERC721Enumerable, Ownable {
     token.tokenAddress = _tokenAddress;
     token.tokenId = _tokenId;
     token.minStakeValue = _minStakeValue;
+    token.holdPeriodTimestamp = _holdPeriodTimestamp;
 
     enabledTokens[_tokenAddress][_tokenId] = token;
 
-    emit TokenAdded(_tokenAddress, _tokenId, _minStakeValue);
+    emit TokenAdded(
+      _tokenAddress,
+      _tokenId,
+      _minStakeValue,
+      _holdPeriodTimestamp
+    );
   }
 
   /**

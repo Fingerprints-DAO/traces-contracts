@@ -4,6 +4,7 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import faker from 'faker'
 import { BigNumber } from 'ethers'
+import dayjs from 'dayjs'
 
 enum ERROR {
   ONLY_ADMIN = 'Ownable: caller is not the owner',
@@ -13,6 +14,7 @@ enum ERROR {
   TRANSFER_NOT_ALLOWED = 'TransferNotAllowed',
   INVALID_AMOUNT = 'InvalidAmount',
   INVALID_TOKEN_ID = 'InvalidTokenId',
+  HOLD_PERIOD = 'HoldPeriod',
 }
 
 // Must be returned in the same order of addToken args
@@ -20,8 +22,9 @@ function generateTokenData({
   tokenAddress = faker.finance.ethereumAddress(),
   tokenId = faker.datatype.number(10_000),
   minStake = BigNumber.from(faker.datatype.number(10_000)),
-} = {}): [string, number, BigNumber] {
-  return [tokenAddress, tokenId, minStake]
+  holdPeriod = dayjs().add(10, 'day').unix(),
+} = {}): [string, number, BigNumber, number] {
+  return [tokenAddress, tokenId, minStake, holdPeriod]
 }
 
 describe('Traces basic', function () {
@@ -159,16 +162,21 @@ describe('Traces admin', function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
     const conn = trace.connect(owner)
-    const [tokenAddress, _, minStake] = tokenData
+    const [tokenAddress, _, minStake, holdPeriod] = tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
-    const tx = await conn.addToken(tokenAddress, tokenId, minStake)
+    const tx = await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
     const { events } = await tx.wait()
     //@ts-ignore
     const [event] = events
 
-    expect(event?.args).to.deep.eq([tokenAddress, tokenId, minStake])
+    expect(event?.args).to.deep.eq([
+      tokenAddress,
+      tokenId,
+      minStake,
+      holdPeriod,
+    ])
     expect(event?.args?.tokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.tokenId).to.eq(tokenId)
     expect(event?.event).to.eq('TokenAdded')
@@ -177,21 +185,21 @@ describe('Traces admin', function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
     const conn = trace.connect(owner)
-    const [tokenAddress, _, minStake] = tokenData
+    const [tokenAddress, _, minStake, holdPeriod] = tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
-    await conn.addToken(tokenAddress, tokenId, minStake)
+    await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
 
     await expect(
-      conn.addToken(tokenAddress, tokenId, minStake)
+      conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
     ).to.revertedWithCustomError(trace, ERROR.DUPLICATED_TOKEN)
   })
   it('returns error if FP vault is not owner of the sent token', async function () {
     const { erc721mock, minter1, owner, trace } = await loadFixture(
       deployFixtureWith721
     )
-    const [tokenId, minStake] = generateTokenData()
+    const [tokenId, _, minStake, holdPeriod] = generateTokenData()
     const conn = trace.connect(owner)
 
     await erc721mock.connect(minter1).mint(minter1.address, tokenId)
@@ -199,7 +207,7 @@ describe('Traces admin', function () {
     expect(await erc721mock.ownerOf(tokenId)).to.eq(minter1.address)
 
     await expect(
-      conn.addToken(erc721mock.address, tokenId, minStake)
+      conn.addToken(erc721mock.address, tokenId, minStake, holdPeriod)
     ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
   })
   // unstaked wtoken
@@ -302,7 +310,19 @@ describe('Traces functionality', function () {
             .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
         ).to.revertedWithCustomError(traces, ERROR.INVALID_TOKEN_ID)
       })
-      // it('NFT is on guarantee hold time', async function () {})
+      // it('NFT is on guarantee hold time', async function () {
+      //   const { traces, owner, tokenData, staker1, erc20mock } =
+      //     await loadFixture(deployFixture)
+      //   const [contractAddress, nftId, amount] = tokenData
+
+      //   await Promise.all([
+      //     traces.connect(owner).addToken(...tokenData),
+      //     erc20mock.connect(staker1).approve(traces.address, amount),
+      //   ])
+      //   await expect(
+      //     traces.connect(staker1).outbid(contractAddress, nftId, amount)
+      //   ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
+      // })
     })
     it('stakes the user token and increase contract balance', async function () {
       const { traces, owner, tokenData, staker1, erc20mock } =
