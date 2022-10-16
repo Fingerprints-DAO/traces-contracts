@@ -20,6 +20,7 @@ error InvalidAmount(
   uint256 amountSent
 );
 error TransferNotAllowed(uint256 expectedAmount, uint256 amountSent);
+error InvalidTokenId(address tokenAddress, uint256 tokenId);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
@@ -29,7 +30,7 @@ contract Traces is ERC721Enumerable, Ownable {
   address public vaultAddress;
 
   // Address of ERC20 token accepted
-  address public allowedTokenAddress;
+  address public customTokenAddress;
 
   // Enabled tokens to be wrapped
   // Mapping [tokenAddress][tokenId] => WrappedToken
@@ -54,7 +55,7 @@ contract Traces is ERC721Enumerable, Ownable {
   ) ERC721('Traces', 'Traces') {
     transferOwnership(_adminAddress);
     vaultAddress = _vaultAddress;
-    allowedTokenAddress = _tokenAddress;
+    customTokenAddress = _tokenAddress;
   }
 
   /**
@@ -115,7 +116,10 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _amount
   ) public {
     WrappedToken memory token = enabledTokens[_tokenAddress][_tokenId];
-    uint256 allowedToTransfer = IERC20(allowedTokenAddress).allowance(
+    if (token.tokenId != _tokenId)
+      revert InvalidTokenId(_tokenAddress, _tokenId);
+
+    uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
       msg.sender,
       address(this)
     );
@@ -133,6 +137,8 @@ contract Traces is ERC721Enumerable, Ownable {
         _amount
       );
     }
+
+    IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
   }
 
   function supportsInterface(bytes4 interfaceId)

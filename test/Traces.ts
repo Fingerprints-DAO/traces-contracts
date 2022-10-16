@@ -12,6 +12,7 @@ enum ERROR {
   INVALID_721_CONTRACT = 'Invalid721Contract',
   TRANSFER_NOT_ALLOWED = 'TransferNotAllowed',
   INVALID_AMOUNT = 'InvalidAmount',
+  INVALID_TOKEN_ID = 'InvalidTokenId',
 }
 
 // Must be returned in the same order of addToken args
@@ -219,7 +220,11 @@ describe('Traces functionality', function () {
     const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
-    const erc20mock = await ERC20Mock.deploy('prints', '$prints', amount)
+    const erc20mock = await ERC20Mock.deploy(
+      'prints',
+      '$prints',
+      ethers.utils.parseUnits(amount.toString(), 18)
+    )
 
     const Traces = await ethers.getContractFactory('Traces')
     const traces = await Traces.deploy(
@@ -235,7 +240,9 @@ describe('Traces functionality', function () {
 
     await Promise.all([
       erc721mock.connect(minter1).mint(FPVaultAddress, tokenData[1]),
-      erc20mock.connect(staker1).mint(staker1.address, amount),
+      erc20mock
+        .connect(staker1)
+        .mint(staker1.address, ethers.utils.parseUnits(amount.toString())),
     ])
 
     return {
@@ -268,7 +275,7 @@ describe('Traces functionality', function () {
             .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
         ).to.revertedWithCustomError(traces, ERROR.TRANSFER_NOT_ALLOWED)
       })
-      it('user doesnt have enough $ERC20token to stake', async function () {
+      it('user doesnt have enough $ERC20 token to stake', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount] = tokenData
@@ -282,8 +289,52 @@ describe('Traces functionality', function () {
             .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
         ).to.revertedWithCustomError(traces, ERROR.INVALID_AMOUNT)
       })
-      // it('NFT is not listed', async function () {})
+      it('NFT is not listed', async function () {
+        const { traces, tokenData, staker1, erc20mock } = await loadFixture(
+          deployFixture
+        )
+        const [contractAddress, nftId, amount] = tokenData
+
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+        await expect(
+          traces
+            .connect(staker1)
+            .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
+        ).to.revertedWithCustomError(traces, ERROR.INVALID_TOKEN_ID)
+      })
       // it('NFT is on guarantee hold time', async function () {})
+    })
+    it('stakes the user token and increase contract balance', async function () {
+      const { traces, owner, tokenData, staker1, erc20mock } =
+        await loadFixture(deployFixture)
+      const [contractAddress, nftId, amount] = tokenData
+      const tracesBalance = await erc20mock.balanceOf(traces.address)
+
+      await Promise.all([
+        traces.connect(owner).addToken(...tokenData),
+        erc20mock.connect(staker1).approve(traces.address, amount),
+      ])
+      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+      expect(await erc20mock.balanceOf(traces.address)).to.eq(
+        tracesBalance.add(amount)
+      )
+    })
+    it('stakes the user token and user balance is decreased', async function () {
+      const { traces, owner, tokenData, staker1, erc20mock } =
+        await loadFixture(deployFixture)
+      const [contractAddress, nftId, amount] = tokenData
+      const userBalance = await erc20mock.balanceOf(staker1.address)
+
+      await Promise.all([
+        traces.connect(owner).addToken(...tokenData),
+        erc20mock.connect(staker1).approve(traces.address, amount),
+      ])
+      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+        userBalance.sub(amount)
+      )
     })
     // it('mints a wrapped nft to the user', async function () {})
     // mint wnft
