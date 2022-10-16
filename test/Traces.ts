@@ -1,31 +1,10 @@
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-// import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import faker from 'faker'
-import { BigNumber } from 'ethers'
-import dayjs from 'dayjs'
 
-enum ERROR {
-  ONLY_ADMIN = 'Ownable: caller is not the owner',
-  DUPLICATED_TOKEN = 'DuplicatedToken',
-  NOT_OWNER_OF_TOKEN = 'NotOwnerOfToken',
-  INVALID_721_CONTRACT = 'Invalid721Contract',
-  TRANSFER_NOT_ALLOWED = 'TransferNotAllowed',
-  INVALID_AMOUNT = 'InvalidAmount',
-  INVALID_TOKEN_ID = 'InvalidTokenId',
-  HOLD_PERIOD = 'HoldPeriod',
-}
-
-// Must be returned in the same order of addToken args
-function generateTokenData({
-  tokenAddress = faker.finance.ethereumAddress(),
-  tokenId = faker.datatype.number(10_000),
-  minStake = BigNumber.from(faker.datatype.number(10_000)),
-  holdPeriod = dayjs().add(10, 'day').unix(),
-} = {}): [string, number, BigNumber, number] {
-  return [tokenAddress, tokenId, minStake, holdPeriod]
-}
+import { ERROR } from './errors'
+import { generateTokenData } from './token'
 
 describe('Traces basic', function () {
   // We define a fixture to reuse the same setup in every test.
