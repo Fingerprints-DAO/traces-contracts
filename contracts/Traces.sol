@@ -3,6 +3,8 @@ pragma solidity ^0.8.9;
 import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
+import '@openzeppelin/contracts/utils/math/SafeMath.sol';
+// import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
@@ -25,6 +27,7 @@ error HoldPeriod(address tokenAddress, uint256 tokenId);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
+  using SafeMath for uint256;
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
 
   // Address where NFTs are. These NFTs will be allowed to be wrapped
@@ -36,9 +39,14 @@ contract Traces is ERC721Enumerable, Ownable {
   // Enabled tokens to be wrapped
   // Mapping [tokenAddress][tokenId] => WrappedToken
   mapping(address => mapping(uint256 => WrappedToken)) public enabledTokens;
+  mapping(address => uint256) public collectionIndex;
+
+  uint256 public collectionCounter = 1;
+  uint256 public constant COLLECTION_MULTIPLIER = 1_000_000;
 
   struct WrappedToken {
     address tokenAddress;
+    uint256 ogTokenId;
     uint256 tokenId;
     uint256 minStakeValue;
     uint256 holdPeriodTimestamp;
@@ -46,6 +54,7 @@ contract Traces is ERC721Enumerable, Ownable {
 
   event TokenAdded(
     address indexed tokenAddress,
+    uint256 indexed ogTokenId,
     uint256 indexed tokenId,
     uint256,
     uint256
@@ -112,22 +121,35 @@ contract Traces is ERC721Enumerable, Ownable {
     if (IERC721(_tokenAddress).ownerOf((_tokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_tokenAddress, _tokenId, vaultAddress);
     }
-    if (enabledTokens[_tokenAddress][_tokenId].tokenId == _tokenId) {
+    if (enabledTokens[_tokenAddress][_tokenId].ogTokenId == _tokenId) {
       revert DuplicatedToken(_tokenAddress, _tokenId);
+    }
+
+    uint256 newTokenId;
+
+    if (collectionIndex[_tokenAddress] < 1) {
+      collectionIndex[_tokenAddress] = (collectionCounter++).mul(
+        COLLECTION_MULTIPLIER
+      );
+      newTokenId = collectionIndex[_tokenAddress].add(_tokenId);
     }
 
     WrappedToken memory token;
 
     token.tokenAddress = _tokenAddress;
-    token.tokenId = _tokenId;
+    token.ogTokenId = _tokenId;
+    token.tokenId = newTokenId;
     token.minStakeValue = _minStakeValue;
     token.holdPeriodTimestamp = _holdPeriodTimestamp;
 
     enabledTokens[_tokenAddress][_tokenId] = token;
 
+    _safeMint(address(this), newTokenId);
+
     emit TokenAdded(
       _tokenAddress,
       _tokenId,
+      newTokenId,
       _minStakeValue,
       _holdPeriodTimestamp
     );
@@ -143,7 +165,7 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _amount
   ) public {
     WrappedToken memory token = enabledTokens[_tokenAddress][_tokenId];
-    if (token.tokenId != _tokenId)
+    if (token.ogTokenId != _tokenId)
       revert InvalidTokenId(_tokenAddress, _tokenId);
 
     if (hasEnoughToStake(_amount, token.minStakeValue))
@@ -173,5 +195,14 @@ contract Traces is ERC721Enumerable, Ownable {
     return
       interfaceId == type(IERC721Enumerable).interfaceId ||
       super.supportsInterface(interfaceId);
+  }
+
+  function onERC721Received(
+    address,
+    address,
+    uint256,
+    bytes calldata
+  ) external pure returns (bytes4) {
+    return IERC721Receiver.onERC721Received.selector;
   }
 }

@@ -128,8 +128,13 @@ describe('Traces admin', function () {
 
     await conn.addToken(...tokenData)
 
-    expect((await conn.enabledTokens(tokenAddress, tokenId)).tokenId).to.eq(
+    const collectionIndex = await trace.collectionIndex(tokenAddress)
+
+    expect((await conn.enabledTokens(tokenAddress, tokenId)).ogTokenId).to.eq(
       tokenId
+    )
+    expect((await conn.enabledTokens(tokenAddress, tokenId)).tokenId).to.eq(
+      collectionIndex.add(tokenId)
     )
     expect(
       (await conn.enabledTokens(tokenAddress, tokenId)).tokenAddress
@@ -149,17 +154,38 @@ describe('Traces admin', function () {
     const tx = await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
     const { events } = await tx.wait()
     //@ts-ignore
-    const [event] = events
+    const [_x, event] = events
+    const collectionIndex = await trace.collectionIndex(tokenAddress)
 
     expect(event?.args).to.deep.eq([
       tokenAddress,
       tokenId,
+      collectionIndex.add(tokenId),
       minStake,
       holdPeriod,
     ])
     expect(event?.args?.tokenAddress).to.match(RegExp(tokenAddress, 'i'))
-    expect(event?.args?.tokenId).to.eq(tokenId)
+    expect(event?.args?.ogTokenId).to.eq(tokenId)
+    expect(event?.args?.tokenId).to.eq(collectionIndex.add(tokenId))
     expect(event?.event).to.eq('TokenAdded')
+  })
+  it('mints the wnft to the contract after adding the data', async function () {
+    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+      await loadFixture(deployFixtureWith721)
+    const conn = trace.connect(owner)
+    const [tokenAddress, _, minStake, holdPeriod] = tokenData
+    const tokenId = 2
+
+    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
+
+    expect(await trace.balanceOf(trace.address)).to.eq(0)
+    await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
+    const collectionIndex = await trace.collectionIndex(tokenAddress)
+
+    expect(await trace.balanceOf(trace.address)).to.eq(1)
+    expect(await trace.ownerOf(collectionIndex.add(tokenId))).to.eq(
+      trace.address
+    )
   })
   it('returns error if token is already added', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
@@ -338,6 +364,18 @@ describe('Traces functionality', function () {
         userBalance.sub(amount)
       )
     })
+    // it('mints WNFT after hold period', async function () {
+    //   const { traces, owner, tokenData, staker1, erc20mock } =
+    //     await loadFixture(deployFixture)
+    //   const [contractAddress, nftId, amount] = tokenData
+
+    //   await Promise.all([
+    //     traces.connect(owner).addToken(...tokenData),
+    //     erc20mock.connect(staker1).approve(traces.address, amount),
+    //   ])
+    //   await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+    // })
     // it('mints a wrapped nft to the user', async function () {})
     // mint wnft
   })
