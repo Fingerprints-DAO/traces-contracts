@@ -330,7 +330,7 @@ describe('Traces functionality', function () {
         ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
       })
     })
-    it('stakes the user token and increase contract balance', async function () {
+    it('increase contract balance when user stakes', async function () {
       const { traces, owner, tokenData, staker1, erc20mock } =
         await loadFixture(deployFixture)
       const [contractAddress, nftId, amount] = tokenData
@@ -346,16 +346,14 @@ describe('Traces functionality', function () {
         tracesBalance.add(amount)
       )
     })
-    it('stakes the user token and user balance is decreased', async function () {
+    it('decreases user balance when user stakes token', async function () {
       const { traces, owner, tokenData, staker1, erc20mock } =
         await loadFixture(deployFixture)
       const [contractAddress, nftId, amount] = tokenData
       const userBalance = await erc20mock.balanceOf(staker1.address)
 
       await Promise.all([
-        traces
-          .connect(owner)
-          .addToken(contractAddress, nftId, amount, dayjs().unix()),
+        traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
         erc20mock.connect(staker1).approve(traces.address, amount),
       ])
       await traces.connect(staker1).outbid(contractAddress, nftId, amount)
