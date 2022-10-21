@@ -179,6 +179,7 @@ contract Traces is ERC721Enumerable, Ownable {
         _amount
       );
     }
+
     if (isHoldPeriod(token.holdPeriodTimestamp))
       revert HoldPeriod(_tokenAddress, _tokenId);
 

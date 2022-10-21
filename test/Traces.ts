@@ -1,11 +1,16 @@
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
+import {
+  loadFixture,
+  SnapshotRestorer,
+  takeSnapshot,
+  time,
+} from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
+import { ethers, network } from 'hardhat'
 import faker from 'faker'
+import dayjs from 'dayjs'
 
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
-import dayjs from 'dayjs'
 
 describe('Traces basic', function () {
   // We define a fixture to reuse the same setup in every test.
@@ -330,52 +335,68 @@ describe('Traces functionality', function () {
         ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
       })
     })
-    it('increase contract balance when user stakes', async function () {
-      const { traces, owner, tokenData, staker1, erc20mock } =
-        await loadFixture(deployFixture)
-      const [contractAddress, nftId, amount] = tokenData
-      const tracesBalance = await erc20mock.balanceOf(traces.address)
+    describe('outbid()', async function () {
+      it('increase contract balance when user stakes', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+        const tracesBalance = await erc20mock.balanceOf(traces.address)
 
-      await Promise.all([
-        traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
-        erc20mock.connect(staker1).approve(traces.address, amount),
-      ])
-      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+        await Promise.all([
+          traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
+          erc20mock.connect(staker1).approve(traces.address, amount),
+        ])
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
 
-      expect(await erc20mock.balanceOf(traces.address)).to.eq(
-        tracesBalance.add(amount)
-      )
+        expect(await erc20mock.balanceOf(traces.address)).to.eq(
+          tracesBalance.add(amount)
+        )
+      })
+      it('decreases user balance when user stakes token', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+        const userBalance = await erc20mock.balanceOf(staker1.address)
+
+        await Promise.all([
+          traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
+          erc20mock.connect(staker1).approve(traces.address, amount),
+        ])
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+          userBalance.sub(amount)
+        )
+      })
+      it('allows user to mint after hold period', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+        const latestBlockTimestamp = await time.latest()
+        const holdPeriod = dayjs(latestBlockTimestamp * 1000).add(3, 'hour')
+
+        await Promise.all([
+          traces
+            .connect(owner)
+            .addToken(contractAddress, nftId, amount, holdPeriod.unix()),
+          erc20mock.connect(staker1).approve(traces.address, amount),
+        ])
+
+        await time.increaseTo(
+          dayjs(latestBlockTimestamp * 1000)
+            .add(3, 'hour')
+            .unix()
+        )
+
+        expect(
+          await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+        ).to.not.reverted
+
+        // await snapshot.restore()
+      })
+      // it('mints a wrapped nft to the user', async function () {})
+      // mint wnft
     })
-    it('decreases user balance when user stakes token', async function () {
-      const { traces, owner, tokenData, staker1, erc20mock } =
-        await loadFixture(deployFixture)
-      const [contractAddress, nftId, amount] = tokenData
-      const userBalance = await erc20mock.balanceOf(staker1.address)
-
-      await Promise.all([
-        traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
-        erc20mock.connect(staker1).approve(traces.address, amount),
-      ])
-      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
-
-      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
-        userBalance.sub(amount)
-      )
-    })
-    // it('mints WNFT after hold period', async function () {
-    //   const { traces, owner, tokenData, staker1, erc20mock } =
-    //     await loadFixture(deployFixture)
-    //   const [contractAddress, nftId, amount] = tokenData
-
-    //   await Promise.all([
-    //     traces.connect(owner).addToken(...tokenData),
-    //     erc20mock.connect(staker1).approve(traces.address, amount),
-    //   ])
-    //   await traces.connect(staker1).outbid(contractAddress, nftId, amount)
-
-    // })
-    // it('mints a wrapped nft to the user', async function () {})
-    // mint wnft
   })
   // unstaked wtoken
   // delete unstaked wtoken

@@ -56,7 +56,9 @@ const config: HardhatUserConfig = {
     test: {
       tasks: [{ command: 'test', params: { testFiles: ['{path}'] } }],
       files: ['./test/**/*'],
-      verbose: true,
+      verbose: false,
+      clearOnStart: true,
+      // runOnLaunch: true,
     },
   },
   contractSizer: {
