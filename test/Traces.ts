@@ -372,8 +372,9 @@ describe('Traces functionality', function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount] = tokenData
-        const latestBlockTimestamp = await time.latest()
-        const holdPeriod = dayjs(latestBlockTimestamp * 1000).add(3, 'hour')
+        const latestBlockTimestamp = (await time.latest()) * 1000
+        // const latestBlockTimestamp = new Date()
+        const holdPeriod = dayjs(latestBlockTimestamp).add(2, 'hour')
 
         await Promise.all([
           traces
@@ -382,20 +383,34 @@ describe('Traces functionality', function () {
           erc20mock.connect(staker1).approve(traces.address, amount),
         ])
 
-        await time.increaseTo(
-          dayjs(latestBlockTimestamp * 1000)
-            .add(3, 'hour')
-            .unix()
-        )
+        await time.increaseTo(dayjs(latestBlockTimestamp).add(2, 'hour').unix())
 
         expect(
           await traces.connect(staker1).outbid(contractAddress, nftId, amount)
         ).to.not.reverted
-
+        // await network.provider.send('hardhat_reset')
         // await snapshot.restore()
       })
-      // it('mints a wrapped nft to the user', async function () {})
-      // mint wnft
+      it.only('transfers the wnft to the user when outbidding', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+        const latestBlockTimestamp = await time.latest()
+
+        const tx = await traces
+          .connect(owner)
+          .addToken(contractAddress, nftId, amount, latestBlockTimestamp)
+        const { events = [] } = await tx.wait()
+        const [_, event] = events
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        expect(await traces.balanceOf(staker1.address)).to.eq(1)
+        expect(await traces.ownerOf(event?.args?.tokenId)).to.eq(
+          staker1.address
+        )
+      })
     })
   })
   // unstaked wtoken

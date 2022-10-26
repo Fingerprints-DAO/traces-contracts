@@ -184,6 +184,7 @@ contract Traces is ERC721Enumerable, Ownable {
       revert HoldPeriod(_tokenAddress, _tokenId);
 
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
+    _safeTransfer(address(this), msg.sender, token.tokenId, '');
   }
 
   function supportsInterface(bytes4 interfaceId)
