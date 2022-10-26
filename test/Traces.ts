@@ -132,14 +132,13 @@ describe('Traces admin', function () {
     const [tokenAddress, tokenId, minStake] = tokenData
 
     await conn.addToken(...tokenData)
-
-    const collectionIndex = await trace.collectionIndex(tokenAddress)
+    const { tokenCount } = await trace.collection(tokenAddress)
 
     expect((await conn.enabledTokens(tokenAddress, tokenId)).ogTokenId).to.eq(
       tokenId
     )
     expect((await conn.enabledTokens(tokenAddress, tokenId)).tokenId).to.eq(
-      collectionIndex.add(tokenId)
+      tokenCount.sub(1)
     )
     expect(
       (await conn.enabledTokens(tokenAddress, tokenId)).tokenAddress
@@ -160,18 +159,18 @@ describe('Traces admin', function () {
     const { events } = await tx.wait()
     //@ts-ignore
     const [_x, event] = events
-    const collectionIndex = await trace.collectionIndex(tokenAddress)
+    const { tokenCount } = await trace.collection(tokenAddress)
 
     expect(event?.args).to.deep.eq([
       tokenAddress,
       tokenId,
-      collectionIndex.add(tokenId),
+      tokenCount.sub(1),
       minStake,
       holdPeriod,
     ])
     expect(event?.args?.tokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
-    expect(event?.args?.tokenId).to.eq(collectionIndex.add(tokenId))
+    expect(event?.args?.tokenId).to.eq(tokenCount.sub(1))
     expect(event?.event).to.eq('TokenAdded')
   })
   it('mints the wnft to the contract after adding the data', async function () {
@@ -185,12 +184,10 @@ describe('Traces admin', function () {
 
     expect(await trace.balanceOf(trace.address)).to.eq(0)
     await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
-    const collectionIndex = await trace.collectionIndex(tokenAddress)
+    const { tokenCount } = await trace.collection(tokenAddress)
 
     expect(await trace.balanceOf(trace.address)).to.eq(1)
-    expect(await trace.ownerOf(collectionIndex.add(tokenId))).to.eq(
-      trace.address
-    )
+    expect(await trace.ownerOf(tokenCount.sub(1))).to.eq(trace.address)
   })
   it('returns error if token is already added', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
@@ -416,7 +413,7 @@ describe('Traces functionality', function () {
           staker1.address
         )
       })
-      it.only('transfers the wnft to the user when outbidding from another user', async function () {
+      it('transfers the wnft to the user when outbidding from another user', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount] = tokenData

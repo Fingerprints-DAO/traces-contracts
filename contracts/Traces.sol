@@ -39,7 +39,7 @@ contract Traces is ERC721Enumerable, Ownable {
   // Enabled tokens to be wrapped
   // Mapping [tokenAddress][tokenId] => WrappedToken
   mapping(address => mapping(uint256 => WrappedToken)) public enabledTokens;
-  mapping(address => uint256) public collectionIndex;
+  mapping(address => CollectionInfo) public collection;
 
   uint256 public collectionCounter = 1;
   uint256 public constant COLLECTION_MULTIPLIER = 1_000_000;
@@ -48,10 +48,15 @@ contract Traces is ERC721Enumerable, Ownable {
     address tokenAddress;
     uint256 ogTokenId;
     uint256 tokenId;
+    uint256 collectionId;
     uint256 minStakeValue;
     uint256 holdPeriodTimestamp;
   }
-
+  struct CollectionInfo {
+    address tokenAddress;
+    uint256 id;
+    uint256 tokenCount;
+  }
   event TokenAdded(
     address indexed tokenAddress,
     uint256 indexed ogTokenId,
@@ -125,20 +130,22 @@ contract Traces is ERC721Enumerable, Ownable {
       revert DuplicatedToken(_tokenAddress, _tokenId);
     }
 
-    uint256 newTokenId;
-
-    if (collectionIndex[_tokenAddress] < 1) {
-      collectionIndex[_tokenAddress] = (collectionCounter++).mul(
+    if (collection[_tokenAddress].id < 1) {
+      collection[_tokenAddress].id = (collectionCounter++).mul(
         COLLECTION_MULTIPLIER
       );
-      newTokenId = collectionIndex[_tokenAddress].add(_tokenId);
+      collection[_tokenAddress].tokenCount = 1;
+      collection[_tokenAddress].tokenAddress = _tokenAddress;
     }
+
+    uint256 newTokenId = collection[_tokenAddress].tokenCount++;
 
     WrappedToken memory token;
 
     token.tokenAddress = _tokenAddress;
     token.ogTokenId = _tokenId;
     token.tokenId = newTokenId;
+    token.collectionId = collection[_tokenAddress].id;
     token.minStakeValue = _minStakeValue;
     token.holdPeriodTimestamp = _holdPeriodTimestamp;
 
