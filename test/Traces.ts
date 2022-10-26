@@ -141,7 +141,7 @@ describe('Traces admin', function () {
       tokenCount.sub(1)
     )
     expect(
-      (await conn.enabledTokens(tokenAddress, tokenId)).tokenAddress
+      (await conn.enabledTokens(tokenAddress, tokenId)).ogTokenAddress
     ).to.match(new RegExp(tokenAddress, 'i'))
     expect(
       (await conn.enabledTokens(tokenAddress, tokenId)).minStakeValue
@@ -168,7 +168,7 @@ describe('Traces admin', function () {
       minStake,
       holdPeriod,
     ])
-    expect(event?.args?.tokenAddress).to.match(RegExp(tokenAddress, 'i'))
+    expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
     expect(event?.args?.tokenId).to.eq(tokenCount.sub(1))
     expect(event?.event).to.eq('TokenAdded')

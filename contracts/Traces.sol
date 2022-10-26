@@ -12,18 +12,18 @@ import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 // Uncomment this line to use console.log
 import 'hardhat/console.sol';
 
-error DuplicatedToken(address tokenAddress, uint256 tokenId);
-error NotOwnerOfToken(address tokenAddress, uint256 tokenId, address vault);
-error Invalid721Contract(address tokenAddress);
+error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
+error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
+error Invalid721Contract(address ogTokenAddress);
 error InvalidAmount(
-  address tokenAddress,
-  uint256 tokenId,
+  address ogTokenAddress,
+  uint256 ogTokenId,
   uint256 expectedAmount,
   uint256 amountSent
 );
 error TransferNotAllowed(uint256 expectedAmount);
-error InvalidTokenId(address tokenAddress, uint256 tokenId);
-error HoldPeriod(address tokenAddress, uint256 tokenId);
+error InvalidTokenId(address ogTokenAddress, uint256 ogTokenId);
+error HoldPeriod(address ogTokenAddress, uint256 ogTokenId);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
@@ -37,7 +37,7 @@ contract Traces is ERC721Enumerable, Ownable {
   address public customTokenAddress;
 
   // Enabled tokens to be wrapped
-  // Mapping [tokenAddress][tokenId] => WrappedToken
+  // Mapping [ogTokenAddress][tokenId] => WrappedToken
   mapping(address => mapping(uint256 => WrappedToken)) public enabledTokens;
   mapping(address => CollectionInfo) public collection;
 
@@ -45,7 +45,7 @@ contract Traces is ERC721Enumerable, Ownable {
   uint256 public constant COLLECTION_MULTIPLIER = 1_000_000;
 
   struct WrappedToken {
-    address tokenAddress;
+    address ogTokenAddress;
     uint256 ogTokenId;
     uint256 tokenId;
     uint256 collectionId;
@@ -53,12 +53,12 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 holdPeriodTimestamp;
   }
   struct CollectionInfo {
-    address tokenAddress;
+    address ogTokenAddress;
     uint256 id;
     uint256 tokenCount;
   }
   event TokenAdded(
-    address indexed tokenAddress,
+    address indexed ogTokenAddress,
     uint256 indexed ogTokenId,
     uint256 indexed tokenId,
     uint256,
@@ -79,9 +79,9 @@ contract Traces is ERC721Enumerable, Ownable {
    * @notice Validate contract address
    * @dev Check if the address sent is a contract and an extension of ERC721
    */
-  modifier _isERC721Contract(address _tokenAddress) {
-    if (!_tokenAddress.supportsInterface(IID_IERC721)) {
-      revert Invalid721Contract(_tokenAddress);
+  modifier _isERC721Contract(address _ogTokenAddress) {
+    if (!_ogTokenAddress.supportsInterface(IID_IERC721)) {
+      revert Invalid721Contract(_ogTokenAddress);
     }
     _;
   }
@@ -118,44 +118,44 @@ contract Traces is ERC721Enumerable, Ownable {
    * It sets all token properties
    */
   function addToken(
-    address _tokenAddress,
-    uint256 _tokenId,
+    address _ogTokenAddress,
+    uint256 _ogTokenId,
     uint256 _minStakeValue,
     uint256 _holdPeriodTimestamp
-  ) public onlyOwner _isERC721Contract(_tokenAddress) {
-    if (IERC721(_tokenAddress).ownerOf((_tokenId)) != vaultAddress) {
-      revert NotOwnerOfToken(_tokenAddress, _tokenId, vaultAddress);
+  ) public onlyOwner _isERC721Contract(_ogTokenAddress) {
+    if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
+      revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
     }
-    if (enabledTokens[_tokenAddress][_tokenId].ogTokenId == _tokenId) {
-      revert DuplicatedToken(_tokenAddress, _tokenId);
+    if (enabledTokens[_ogTokenAddress][_ogTokenId].ogTokenId == _ogTokenId) {
+      revert DuplicatedToken(_ogTokenAddress, _ogTokenId);
     }
 
-    if (collection[_tokenAddress].id < 1) {
-      collection[_tokenAddress].id = (collectionCounter++).mul(
+    if (collection[_ogTokenAddress].id < 1) {
+      collection[_ogTokenAddress].id = (collectionCounter++).mul(
         COLLECTION_MULTIPLIER
       );
-      collection[_tokenAddress].tokenCount = 1;
-      collection[_tokenAddress].tokenAddress = _tokenAddress;
+      collection[_ogTokenAddress].tokenCount = 1;
+      collection[_ogTokenAddress].ogTokenAddress = _ogTokenAddress;
     }
 
-    uint256 newTokenId = collection[_tokenAddress].tokenCount++;
+    uint256 newTokenId = collection[_ogTokenAddress].tokenCount++;
 
     WrappedToken memory token;
 
-    token.tokenAddress = _tokenAddress;
-    token.ogTokenId = _tokenId;
+    token.ogTokenAddress = _ogTokenAddress;
+    token.ogTokenId = _ogTokenId;
     token.tokenId = newTokenId;
-    token.collectionId = collection[_tokenAddress].id;
+    token.collectionId = collection[_ogTokenAddress].id;
     token.minStakeValue = _minStakeValue;
     token.holdPeriodTimestamp = _holdPeriodTimestamp;
 
-    enabledTokens[_tokenAddress][_tokenId] = token;
+    enabledTokens[_ogTokenAddress][_ogTokenId] = token;
 
     _safeMint(address(this), newTokenId);
 
     emit TokenAdded(
-      _tokenAddress,
-      _tokenId,
+      _ogTokenAddress,
+      _ogTokenId,
       newTokenId,
       _minStakeValue,
       _holdPeriodTimestamp
@@ -167,28 +167,28 @@ contract Traces is ERC721Enumerable, Ownable {
    * @dev It transfer the WNFT to msg.sender and stake the user erc20 token
    */
   function outbid(
-    address _tokenAddress,
-    uint256 _tokenId,
+    address _ogTokenAddress,
+    uint256 _ogTokenId,
     uint256 _amount
   ) public {
-    WrappedToken memory token = enabledTokens[_tokenAddress][_tokenId];
-    if (token.ogTokenId != _tokenId)
-      revert InvalidTokenId(_tokenAddress, _tokenId);
+    WrappedToken memory token = enabledTokens[_ogTokenAddress][_ogTokenId];
+    if (token.ogTokenId != _ogTokenId)
+      revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
     if (hasEnoughToStake(_amount, token.minStakeValue))
       revert TransferNotAllowed(_amount);
 
     if (token.minStakeValue > _amount) {
       revert InvalidAmount(
-        _tokenAddress,
-        _tokenId,
+        _ogTokenAddress,
+        _ogTokenId,
         token.minStakeValue,
         _amount
       );
     }
 
     if (isHoldPeriod(token.holdPeriodTimestamp))
-      revert HoldPeriod(_tokenAddress, _tokenId);
+      revert HoldPeriod(_ogTokenAddress, _ogTokenId);
 
     address _owner = this.ownerOf(token.tokenId);
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
