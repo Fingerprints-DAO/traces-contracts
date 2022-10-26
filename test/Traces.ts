@@ -231,7 +231,8 @@ describe('Traces functionality', function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deployFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [deployer, owner, minter1, staker1] = await ethers.getSigners()
+    const [deployer, owner, minter1, staker1, staker2] =
+      await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
     const amount = 1_000_000
 
@@ -262,6 +263,9 @@ describe('Traces functionality', function () {
       erc20mock
         .connect(staker1)
         .mint(staker1.address, ethers.utils.parseUnits(amount.toString())),
+      erc20mock
+        .connect(staker2)
+        .mint(staker2.address, ethers.utils.parseUnits(amount.toString())),
     ])
 
     return {
@@ -275,6 +279,7 @@ describe('Traces functionality', function () {
       erc20mock,
       amount,
       staker1,
+      staker2,
     }
   }
 
@@ -391,7 +396,7 @@ describe('Traces functionality', function () {
         // await network.provider.send('hardhat_reset')
         // await snapshot.restore()
       })
-      it.only('transfers the wnft to the user when outbidding', async function () {
+      it('transfers the wnft to the user when outbidding', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount] = tokenData
@@ -409,6 +414,29 @@ describe('Traces functionality', function () {
         expect(await traces.balanceOf(staker1.address)).to.eq(1)
         expect(await traces.ownerOf(event?.args?.tokenId)).to.eq(
           staker1.address
+        )
+      })
+      it.only('transfers the wnft to the user when outbidding from another user', async function () {
+        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+        const latestBlockTimestamp = await time.latest()
+
+        const tx = await traces
+          .connect(owner)
+          .addToken(contractAddress, nftId, amount, latestBlockTimestamp)
+        const { events = [] } = await tx.wait()
+        const [_, event] = events
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+        await erc20mock.connect(staker2).approve(traces.address, amount)
+
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+        await traces.connect(staker2).outbid(contractAddress, nftId, amount)
+
+        expect(await traces.balanceOf(staker1.address)).to.eq(0)
+        expect(await traces.balanceOf(staker2.address)).to.eq(1)
+        expect(await traces.ownerOf(event?.args?.tokenId)).to.eq(
+          staker2.address
         )
       })
     })
