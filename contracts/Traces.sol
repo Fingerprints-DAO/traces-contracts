@@ -139,26 +139,24 @@ contract Traces is ERC721Enumerable, Ownable {
     // Create a collection if it doesn't exist
     // Set collection id, tokenCount and ogTokenAddress
     if (collection[_ogTokenAddress].id < 1) {
-      collection[_ogTokenAddress].id = (collectionCounter++).mul(
-        COLLECTION_MULTIPLIER
-      );
-      collection[_ogTokenAddress].tokenCount = 1;
-      collection[_ogTokenAddress].ogTokenAddress = _ogTokenAddress;
+      collection[_ogTokenAddress] = CollectionInfo({
+        id: (collectionCounter++).mul(COLLECTION_MULTIPLIER),
+        tokenCount: 1,
+        ogTokenAddress: _ogTokenAddress
+      });
     }
 
     uint256 newTokenId = collection[_ogTokenAddress].tokenCount++;
 
-    WrappedToken memory token;
-
-    token.ogTokenAddress = _ogTokenAddress;
-    token.ogTokenId = _ogTokenId;
-    token.tokenId = newTokenId;
-    token.collectionId = collection[_ogTokenAddress].id;
-    token.minStakeValue = _minStakeValue;
-    token.minHoldPeriod = _minHoldPeriod;
-    token.lastOutbidTimestamp = 0;
-
-    enabledTokens[_ogTokenAddress][_ogTokenId] = token;
+    enabledTokens[_ogTokenAddress][_ogTokenId] = WrappedToken({
+      ogTokenAddress: _ogTokenAddress,
+      ogTokenId: _ogTokenId,
+      tokenId: newTokenId,
+      collectionId: collection[_ogTokenAddress].id,
+      minStakeValue: _minStakeValue,
+      minHoldPeriod: _minHoldPeriod,
+      lastOutbidTimestamp: 0
+    });
 
     // Mint WNFT to this contract
     _safeMint(address(this), newTokenId);
