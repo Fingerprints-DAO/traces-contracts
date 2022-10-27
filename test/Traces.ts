@@ -1,13 +1,11 @@
-import {
-  loadFixture,
-  SnapshotRestorer,
-  takeSnapshot,
-  time,
-} from '@nomicfoundation/hardhat-network-helpers'
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
 import { ethers, network } from 'hardhat'
 import faker from 'faker'
 import dayjs from 'dayjs'
+import duration from 'dayjs/plugin/duration'
+
+dayjs.extend(duration)
 
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
@@ -324,16 +322,19 @@ describe('Traces functionality', function () {
         ).to.revertedWithCustomError(traces, ERROR.INVALID_TOKEN_ID)
       })
       it('NFT is on guarantee hold time', async function () {
-        const { traces, owner, tokenData, staker1, erc20mock } =
+        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount] = tokenData
 
         await Promise.all([
           traces.connect(owner).addToken(...tokenData),
           erc20mock.connect(staker1).approve(traces.address, amount),
+          erc20mock.connect(staker2).approve(traces.address, amount),
         ])
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
         await expect(
-          traces.connect(staker1).outbid(contractAddress, nftId, amount)
+          traces.connect(staker2).outbid(contractAddress, nftId, amount)
         ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
       })
     })
@@ -416,18 +417,23 @@ describe('Traces functionality', function () {
       it('transfers the wnft to the user when outbidding from another user', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount] = tokenData
-        const latestBlockTimestamp = await time.latest()
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        let latestBlockTimestamp = await time.latest()
 
         const tx = await traces
           .connect(owner)
-          .addToken(contractAddress, nftId, amount, latestBlockTimestamp)
+          .addToken(contractAddress, nftId, amount, holdPeriod)
         const { events = [] } = await tx.wait()
         const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)
         await erc20mock.connect(staker2).approve(traces.address, amount)
 
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        latestBlockTimestamp = await time.latest()
+        await time.increaseTo(
+          dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
+        )
         await traces.connect(staker2).outbid(contractAddress, nftId, amount)
 
         expect(await traces.balanceOf(staker1.address)).to.eq(0)

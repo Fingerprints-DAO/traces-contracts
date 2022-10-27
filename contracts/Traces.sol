@@ -50,7 +50,8 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 tokenId;
     uint256 collectionId;
     uint256 minStakeValue;
-    uint256 holdPeriodTimestamp;
+    uint256 minHoldPeriod;
+    uint256 lastOutbidTimestamp;
   }
   struct CollectionInfo {
     address ogTokenAddress;
@@ -86,8 +87,13 @@ contract Traces is ERC721Enumerable, Ownable {
     _;
   }
 
-  function isHoldPeriod(uint256 timestamp) public view returns (bool) {
-    return timestamp > block.timestamp;
+  function isHoldPeriod(uint256 lastOutbid, uint256 minHoldPeriod)
+    public
+    view
+    returns (bool)
+  {
+    if (lastOutbid == 0) return false;
+    return lastOutbid.add(minHoldPeriod) > block.timestamp;
   }
 
   function hasEnoughToStake(uint256 _amount, uint256 _minStake)
@@ -121,7 +127,7 @@ contract Traces is ERC721Enumerable, Ownable {
     address _ogTokenAddress,
     uint256 _ogTokenId,
     uint256 _minStakeValue,
-    uint256 _holdPeriodTimestamp
+    uint256 _minHoldPeriod
   ) public onlyOwner _isERC721Contract(_ogTokenAddress) {
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
@@ -130,6 +136,8 @@ contract Traces is ERC721Enumerable, Ownable {
       revert DuplicatedToken(_ogTokenAddress, _ogTokenId);
     }
 
+    // Create a collection if it doesn't exist
+    // Set collection id, tokenCount and ogTokenAddress
     if (collection[_ogTokenAddress].id < 1) {
       collection[_ogTokenAddress].id = (collectionCounter++).mul(
         COLLECTION_MULTIPLIER
@@ -147,10 +155,12 @@ contract Traces is ERC721Enumerable, Ownable {
     token.tokenId = newTokenId;
     token.collectionId = collection[_ogTokenAddress].id;
     token.minStakeValue = _minStakeValue;
-    token.holdPeriodTimestamp = _holdPeriodTimestamp;
+    token.minHoldPeriod = _minHoldPeriod;
+    token.lastOutbidTimestamp = 0;
 
     enabledTokens[_ogTokenAddress][_ogTokenId] = token;
 
+    // Mint WNFT to this contract
     _safeMint(address(this), newTokenId);
 
     emit TokenAdded(
@@ -158,7 +168,7 @@ contract Traces is ERC721Enumerable, Ownable {
       _ogTokenId,
       newTokenId,
       _minStakeValue,
-      _holdPeriodTimestamp
+      _minHoldPeriod
     );
   }
 
@@ -187,9 +197,11 @@ contract Traces is ERC721Enumerable, Ownable {
       );
     }
 
-    if (isHoldPeriod(token.holdPeriodTimestamp))
+    if (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod))
       revert HoldPeriod(_ogTokenAddress, _ogTokenId);
 
+    enabledTokens[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block
+      .timestamp;
     address _owner = this.ownerOf(token.tokenId);
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
