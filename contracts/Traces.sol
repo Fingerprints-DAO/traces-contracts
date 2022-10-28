@@ -10,7 +10,7 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 // Uncomment this line to use console.log
-import 'hardhat/console.sol';
+// import 'hardhat/console.sol';
 
 error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
 error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
@@ -24,6 +24,7 @@ error InvalidAmount(
 error TransferNotAllowed(uint256 expectedAmount);
 error InvalidTokenId(address ogTokenAddress, uint256 ogTokenId);
 error HoldPeriod(address ogTokenAddress, uint256 ogTokenId);
+error NoPermission(uint256 tokenId, address owner);
 
 contract Traces is ERC721Enumerable, Ownable {
   using ERC165Checker for address;
@@ -37,13 +38,18 @@ contract Traces is ERC721Enumerable, Ownable {
   address public customTokenAddress;
 
   // Enabled tokens to be wrapped
-  // Mapping [ogTokenAddress][tokenId] => WrappedToken
+  // Mapping [ogTokenAddress][ogTokenId] => WrappedToken
   mapping(address => mapping(uint256 => WrappedToken)) public enabledTokens;
+  mapping(uint256 => OgToken) public wrappedIdToOgToken;
   mapping(address => CollectionInfo) public collection;
 
   uint256 public collectionCounter = 1;
   uint256 public constant COLLECTION_MULTIPLIER = 1_000_000;
 
+  struct OgToken {
+    address tokenAddress;
+    uint256 id;
+  }
   struct WrappedToken {
     address ogTokenAddress;
     uint256 ogTokenId;
@@ -70,7 +76,7 @@ contract Traces is ERC721Enumerable, Ownable {
     address _adminAddress,
     address _vaultAddress,
     address _tokenAddress
-  ) ERC721('Traces', 'Traces') {
+  ) ERC721('TRC', 'Traces') {
     transferOwnership(_adminAddress);
     vaultAddress = _vaultAddress;
     customTokenAddress = _tokenAddress;
@@ -157,6 +163,10 @@ contract Traces is ERC721Enumerable, Ownable {
       minHoldPeriod: _minHoldPeriod,
       lastOutbidTimestamp: 0
     });
+    wrappedIdToOgToken[newTokenId] = OgToken({
+      tokenAddress: _ogTokenAddress,
+      id: _ogTokenId
+    });
 
     // Mint WNFT to this contract
     _safeMint(address(this), newTokenId);
@@ -203,6 +213,28 @@ contract Traces is ERC721Enumerable, Ownable {
     address _owner = this.ownerOf(token.tokenId);
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
+  }
+
+  /**
+   * @notice Unstake a wrapped NFT
+   * @dev It transfer the WNFT back to this contract
+   * and custom erc20 token back to the msg.sender
+   */
+  function unstake(uint256 _id) public {
+    if (msg.sender != this.ownerOf(_id))
+      revert NoPermission(_id, this.ownerOf(_id));
+
+    uint256 stakedValue = enabledTokens[wrappedIdToOgToken[_id].tokenAddress][
+      wrappedIdToOgToken[_id].id
+    ].minStakeValue;
+
+    IERC20(customTokenAddress).approve(address(this), stakedValue);
+    _safeTransfer(msg.sender, address(this), _id, '');
+    IERC20(customTokenAddress).transferFrom(
+      address(this),
+      msg.sender,
+      stakedValue
+    );
   }
 
   function supportsInterface(bytes4 interfaceId)

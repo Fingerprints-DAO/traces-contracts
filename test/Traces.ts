@@ -444,6 +444,53 @@ describe('Traces functionality', function () {
       })
     })
   })
+  describe('unstake()', async function () {
+    async function mintAndStake(
+      fixture: Awaited<ReturnType<typeof deployFixture>>
+    ) {
+      const { traces, owner, tokenData, staker1, erc20mock } = fixture
+      const [contractAddress, nftId, amount] = tokenData
+
+      await Promise.all([
+        traces.connect(owner).addToken(...tokenData),
+        erc20mock.connect(staker1).approve(traces.address, amount),
+      ])
+      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+      return await traces.enabledTokens(contractAddress, nftId)
+    }
+    it('returns error if user is not the wnft owner', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker2 } = fixture
+      const wNFT = await mintAndStake(fixture)
+
+      await expect(
+        traces.connect(staker2).unstake(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.NO_PREMISSION)
+    })
+    it('returns error if user is not the wnft owner', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker2 } = fixture
+      const wNFT = await mintAndStake(fixture)
+
+      await expect(
+        traces.connect(staker2).unstake(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.NO_PREMISSION)
+    })
+    it('unstakes user $prints and return the wnft', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker1, erc20mock } = fixture
+      const wNFT = await mintAndStake(fixture)
+      const stakedAmount = wNFT.minStakeValue
+      const stakerBalance = await erc20mock.balanceOf(staker1.address)
+
+      await expect(traces.connect(staker1).unstake(wNFT.tokenId)).to.not
+        .reverted
+      expect(await traces.balanceOf(staker1.address)).to.eq(0)
+      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+        stakerBalance.add(stakedAmount)
+      )
+    })
+  })
   // unstaked wtoken
   // delete unstaked wtoken
   // getUri with proxy string
