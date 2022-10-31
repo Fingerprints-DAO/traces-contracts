@@ -39,7 +39,7 @@ contract Traces is ERC721Enumerable, Ownable {
 
   // Enabled tokens to be wrapped
   // Mapping [ogTokenAddress][ogTokenId] => WrappedToken
-  mapping(address => mapping(uint256 => WrappedToken)) public enabledTokens;
+  mapping(address => mapping(uint256 => WrappedToken)) public wnftList;
   mapping(uint256 => OgToken) public wrappedIdToOgToken;
   mapping(address => CollectionInfo) public collection;
 
@@ -102,17 +102,14 @@ contract Traces is ERC721Enumerable, Ownable {
     return lastOutbid.add(minHoldPeriod) > block.timestamp;
   }
 
-  function hasEnoughToStake(uint256 _amount, uint256 _minStake)
-    public
-    view
-    returns (bool)
-  {
+  function hasEnoughToStake(uint256 _amount, uint256 _minStake) public view {
     uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
       msg.sender,
       address(this)
     );
 
-    return allowedToTransfer < _amount || allowedToTransfer < _minStake;
+    if (allowedToTransfer < _amount || allowedToTransfer < _minStake)
+      revert TransferNotAllowed(_amount);
   }
 
   /**
@@ -121,6 +118,13 @@ contract Traces is ERC721Enumerable, Ownable {
    */
   function setVaultAddress(address _vaultAddress) public onlyOwner {
     vaultAddress = _vaultAddress;
+  }
+
+  function getStakedValue(uint256 _tokenId) public view returns (uint256) {
+    return
+      wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
+        wrappedIdToOgToken[_tokenId].id
+      ].minStakeValue;
   }
 
   /**
@@ -138,7 +142,7 @@ contract Traces is ERC721Enumerable, Ownable {
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
     }
-    if (enabledTokens[_ogTokenAddress][_ogTokenId].ogTokenId == _ogTokenId) {
+    if (wnftList[_ogTokenAddress][_ogTokenId].ogTokenId == _ogTokenId) {
       revert DuplicatedToken(_ogTokenAddress, _ogTokenId);
     }
 
@@ -154,7 +158,7 @@ contract Traces is ERC721Enumerable, Ownable {
 
     uint256 newTokenId = collection[_ogTokenAddress].tokenCount++;
 
-    enabledTokens[_ogTokenAddress][_ogTokenId] = WrappedToken({
+    wnftList[_ogTokenAddress][_ogTokenId] = WrappedToken({
       ogTokenAddress: _ogTokenAddress,
       ogTokenId: _ogTokenId,
       tokenId: newTokenId,
@@ -189,12 +193,11 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _ogTokenId,
     uint256 _amount
   ) public {
-    WrappedToken memory token = enabledTokens[_ogTokenAddress][_ogTokenId];
+    WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
     if (token.ogTokenId != _ogTokenId)
       revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
-    if (hasEnoughToStake(_amount, token.minStakeValue))
-      revert TransferNotAllowed(_amount);
+    hasEnoughToStake(_amount, token.minStakeValue);
 
     if (token.minStakeValue > _amount) {
       revert InvalidAmount(
@@ -208,8 +211,7 @@ contract Traces is ERC721Enumerable, Ownable {
     if (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod))
       revert HoldPeriod(_ogTokenAddress, _ogTokenId);
 
-    enabledTokens[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block
-      .timestamp;
+    wnftList[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block.timestamp;
     address _owner = this.ownerOf(token.tokenId);
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
@@ -224,9 +226,7 @@ contract Traces is ERC721Enumerable, Ownable {
     if (msg.sender != this.ownerOf(_id))
       revert NoPermission(_id, this.ownerOf(_id));
 
-    uint256 stakedValue = enabledTokens[wrappedIdToOgToken[_id].tokenAddress][
-      wrappedIdToOgToken[_id].id
-    ].minStakeValue;
+    uint256 stakedValue = getStakedValue(_id);
 
     IERC20(customTokenAddress).approve(address(this), stakedValue);
     _safeTransfer(msg.sender, address(this), _id, '');
