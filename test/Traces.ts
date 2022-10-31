@@ -38,10 +38,16 @@ describe('Traces basic', function () {
 
       expect(await trace.totalSupply()).to.eq(0)
     })
-    it('transfers contract ownership to owner address sent', async function () {
+    it('grants DEFAULT_ADMIN_ROLE to the deployer', async function () {
       const { trace, owner } = await loadFixture(deployFixture)
 
-      expect(await trace.owner()).to.eq(owner.address)
+      expect(await trace.hasRole(trace.DEFAULT_ADMIN_ROLE(), owner.address)).to
+        .be.true
+    })
+    it('grants EDITOR_ROLE to the deployer', async function () {
+      const { trace, owner } = await loadFixture(deployFixture)
+
+      expect(await trace.hasRole(trace.EDITOR_ROLE(), owner.address)).to.be.true
     })
     it('saves FP address when deploying', async function () {
       const { trace, FPVaultAddress } = await loadFixture(deployFixture)
@@ -112,9 +118,10 @@ describe('Traces admin', function () {
   it('returns error when calling addToken without right permission', async function () {
     const { deployer, trace } = await loadFixture(deployFixtureWith721)
     const args = generateTokenData()
+    const EDITOR_ROLE = await trace.EDITOR_ROLE()
 
     await expect(trace.connect(deployer).addToken(...args)).to.revertedWith(
-      ERROR.ONLY_ADMIN
+      `AccessControl: account ${deployer.address.toLowerCase()} is missing role ${EDITOR_ROLE}`
     )
   })
 
@@ -503,6 +510,23 @@ describe('Traces functionality', function () {
       const stakerBalance = await erc20mock.balanceOf(staker1.address)
 
       await expect(traces.connect(staker1).unstake(wNFT.tokenId)).to.not
+        .reverted
+      expect(await traces.balanceOf(staker1.address)).to.eq(0)
+      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+        stakerBalance.add(stakedAmount)
+      )
+    })
+    it('unstake user $prints when admin force it and return the wnft', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, erc20mock, staker2, staker1, owner } = fixture
+      const wNFT = await mintAndStake(fixture)
+      const stakedAmount = wNFT.minStakeValue
+      const stakerBalance = await erc20mock.balanceOf(staker1.address)
+      const EDITOR_ROLE = await traces.EDITOR_ROLE()
+
+      await traces.connect(owner).grantRole(EDITOR_ROLE, staker2.address)
+
+      await expect(traces.connect(staker2).unstake(wNFT.tokenId)).to.not
         .reverted
       expect(await traces.balanceOf(staker1.address)).to.eq(0)
       expect(await erc20mock.balanceOf(staker1.address)).to.eq(

@@ -5,8 +5,8 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 // import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol';
-import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/access/AccessControl.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 // Uncomment this line to use console.log
@@ -26,9 +26,11 @@ error InvalidTokenId(address ogTokenAddress, uint256 ogTokenId);
 error HoldPeriod(address ogTokenAddress, uint256 ogTokenId);
 error NoPermission(uint256 tokenId, address owner);
 
-contract Traces is ERC721Enumerable, Ownable {
+contract Traces is ERC721Enumerable, AccessControl {
   using ERC165Checker for address;
   using SafeMath for uint256;
+
+  bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
 
   // Address where NFTs are. These NFTs will be allowed to be wrapped
@@ -77,7 +79,8 @@ contract Traces is ERC721Enumerable, Ownable {
     address _vaultAddress,
     address _tokenAddress
   ) ERC721('TRC', 'Traces') {
-    transferOwnership(_adminAddress);
+    _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
+    _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
     customTokenAddress = _tokenAddress;
   }
@@ -116,7 +119,10 @@ contract Traces is ERC721Enumerable, Ownable {
    * @notice Change Vault Address
    * @dev Only owner. It sets a new address to vaultAddress variable
    */
-  function setVaultAddress(address _vaultAddress) public onlyOwner {
+  function setVaultAddress(address _vaultAddress)
+    public
+    onlyRole(DEFAULT_ADMIN_ROLE)
+  {
     vaultAddress = _vaultAddress;
   }
 
@@ -138,7 +144,7 @@ contract Traces is ERC721Enumerable, Ownable {
     uint256 _ogTokenId,
     uint256 _minStakeValue,
     uint256 _minHoldPeriod
-  ) public onlyOwner _isERC721Contract(_ogTokenAddress) {
+  ) public onlyRole(EDITOR_ROLE) _isERC721Contract(_ogTokenAddress) {
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
     }
@@ -223,25 +229,22 @@ contract Traces is ERC721Enumerable, Ownable {
    * and custom erc20 token back to the msg.sender
    */
   function unstake(uint256 _id) public {
-    if (msg.sender != this.ownerOf(_id))
-      revert NoPermission(_id, this.ownerOf(_id));
+    address _owner = this.ownerOf(_id);
+    if (msg.sender != _owner && !hasRole(EDITOR_ROLE, msg.sender))
+      revert NoPermission(_id, _owner);
 
     uint256 stakedValue = getStakedValue(_id);
 
     IERC20(customTokenAddress).approve(address(this), stakedValue);
-    _safeTransfer(msg.sender, address(this), _id, '');
-    IERC20(customTokenAddress).transferFrom(
-      address(this),
-      msg.sender,
-      stakedValue
-    );
+    _safeTransfer(_owner, address(this), _id, '');
+    IERC20(customTokenAddress).transferFrom(address(this), _owner, stakedValue);
   }
 
   function supportsInterface(bytes4 interfaceId)
     public
     view
     virtual
-    override(ERC721Enumerable)
+    override(ERC721Enumerable, AccessControl)
     returns (bool)
   {
     return
