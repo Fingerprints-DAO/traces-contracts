@@ -301,7 +301,7 @@ describe('Traces functionality', function () {
     return await traces.wnftList(contractAddress, nftId)
   }
 
-  describe('Mint an WNFT', async function () {
+  describe('mint()', async function () {
     describe('returns error when: ', async function () {
       it('user doesnt executed allowance to transfer $ERC20token to stake', async function () {
         const { traces, owner, tokenData, staker1 } = await loadFixture(
@@ -465,7 +465,7 @@ describe('Traces functionality', function () {
           staker2.address
         )
       })
-      it('transfers the wnft from owner and give back custom erc20 tokens when the user is outbidded', async function () {
+      it('transfers the wnft from owner when the user is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
         const [contractAddress, nftId, amount, holdPeriod] = tokenData
@@ -493,6 +493,31 @@ describe('Traces functionality', function () {
           staker2.address
         )
       })
+      it('transfers the erc20 custom token back to the user when the same is outbidded', async function () {
+        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        const balanceStaker1 = await erc20mock.balanceOf(staker1.address)
+        let latestBlockTimestamp = await time.latest()
+
+        const tx = await traces
+          .connect(owner)
+          .addToken(contractAddress, nftId, amount, holdPeriod)
+        const { events = [] } = await tx.wait()
+        const [_, event] = events
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+        await erc20mock.connect(staker2).approve(traces.address, amount)
+
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        latestBlockTimestamp = await time.latest()
+        await time.increaseTo(
+          dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
+        )
+        await traces.connect(staker2).outbid(contractAddress, nftId, amount)
+
+        expect(await erc20mock.balanceOf(staker1.address)).to.eq(balanceStaker1)
+      })
     })
   })
   describe('unstake()', async function () {
@@ -512,8 +537,8 @@ describe('Traces functionality', function () {
       const stakedAmount = wNFT.minStakeValue
       const stakerBalance = await erc20mock.balanceOf(staker1.address)
 
-      await expect(traces.connect(staker1).unstake(wNFT.tokenId)).to.not
-        .reverted
+      await traces.connect(staker1).unstake(wNFT.tokenId)
+
       expect(await traces.balanceOf(staker1.address)).to.eq(0)
       expect(await erc20mock.balanceOf(staker1.address)).to.eq(
         stakerBalance.add(stakedAmount)
@@ -553,7 +578,7 @@ describe('Traces functionality', function () {
     })
     it('returns error when trying to delete staked wnft', async function () {
       const fixture = await loadFixture(deployFixture)
-      const { traces, staker2, owner } = fixture
+      const { traces, owner } = fixture
       const wNFT = await mintAndStake(fixture)
 
       await expect(
@@ -613,13 +638,5 @@ describe('Traces functionality', function () {
       )
     })
   })
-  // it('returns error when try to delete a wnft staked', async function () {
-  //   const fixture = await loadFixture(deployFixture)
-  //   const { traces, erc20mock, owner } = fixture
-  //   const wNFT = await mintAndStake(fixture)
-
-  //   await expect(traces.connect(owner).unstake(wNFT.tokenId)).to.
-  // })
-  // delete unstaked wtoken
   // getUri with proxy string
 })

@@ -78,7 +78,7 @@ contract Traces is ERC721Enumerable, AccessControl {
     address _adminAddress,
     address _vaultAddress,
     address _tokenAddress
-  ) ERC721('TRC', 'Traces') {
+  ) ERC721('Fingerprint Traces', 'FPTR') {
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
     _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
@@ -219,9 +219,17 @@ contract Traces is ERC721Enumerable, AccessControl {
 
     wnftList[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block.timestamp;
     address _owner = this.ownerOf(token.tokenId);
-    IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
-    // TODO: transfer erc20 staked token back to the oubidded user
+    // transfer wnft from this contract to the user
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
+    // transfer erc20 custom token from sender to this contract
+    IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
+    // transfer erc20 staked token back to the oubidded user
+    IERC20(customTokenAddress).approve(address(this), token.minStakeValue);
+    IERC20(customTokenAddress).transferFrom(
+      address(this),
+      _owner,
+      token.minStakeValue
+    );
   }
 
   /**
@@ -236,14 +244,17 @@ contract Traces is ERC721Enumerable, AccessControl {
 
     uint256 stakedValue = getStakedValue(_id);
 
+    // allowance of this contract
     IERC20(customTokenAddress).approve(address(this), stakedValue);
+    // transfer user wnft to this contract
     _safeTransfer(_owner, address(this), _id, '');
+    // transfer erc20 custom token from this contract to the user
     IERC20(customTokenAddress).transferFrom(address(this), _owner, stakedValue);
   }
 
   /**
    * @notice Delete unstaked token
-   * @dev Only editor.
+   * @dev Only editor and if the token is unstaked (contract is the owner)
    * It removes the token from mapping and burn the nft
    */
   function deleteToken(uint256 _id) public onlyRole(EDITOR_ROLE) {
