@@ -7,5 +7,5 @@ export enum ERROR {
   INVALID_AMOUNT = 'InvalidAmount',
   INVALID_TOKEN_ID = 'InvalidTokenId',
   HOLD_PERIOD = 'HoldPeriod',
-  NO_PREMISSION = 'NoPermission',
+  NO_PERMISSION = 'NoPermission',
 }

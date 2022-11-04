@@ -10,7 +10,7 @@ import '@openzeppelin/contracts/access/AccessControl.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 // Uncomment this line to use console.log
-// import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
 error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
@@ -157,7 +157,7 @@ contract Traces is ERC721Enumerable, AccessControl {
     if (collection[_ogTokenAddress].id < 1) {
       collection[_ogTokenAddress] = CollectionInfo({
         id: (collectionCounter++).mul(COLLECTION_MULTIPLIER),
-        tokenCount: 1,
+        tokenCount: 0,
         ogTokenAddress: _ogTokenAddress
       });
     }
@@ -220,6 +220,7 @@ contract Traces is ERC721Enumerable, AccessControl {
     wnftList[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block.timestamp;
     address _owner = this.ownerOf(token.tokenId);
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
+    // TODO: transfer erc20 staked token back to the oubidded user
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
   }
 
@@ -238,6 +239,29 @@ contract Traces is ERC721Enumerable, AccessControl {
     IERC20(customTokenAddress).approve(address(this), stakedValue);
     _safeTransfer(_owner, address(this), _id, '');
     IERC20(customTokenAddress).transferFrom(address(this), _owner, stakedValue);
+  }
+
+  /**
+   * @notice Delete unstaked token
+   * @dev Only editor.
+   * It removes the token from mapping and burn the nft
+   */
+  function deleteToken(uint256 _id) public onlyRole(EDITOR_ROLE) {
+    if (ownerOf(_id) != address(this)) revert NoPermission(_id, ownerOf(_id));
+
+    // Delete WrappedToken from wnftList[tokenAddress][tokenId]
+    delete wnftList[wrappedIdToOgToken[_id].tokenAddress][
+      wrappedIdToOgToken[_id].id
+    ];
+
+    // Decrease tokenCount from CollectionInfo[tokenAddress]
+    collection[wrappedIdToOgToken[_id].tokenAddress].tokenCount = collection[
+      wrappedIdToOgToken[_id].tokenAddress
+    ].tokenCount.sub(1);
+
+    // Delete OgToken from wrappedIdToOgToken[tokenId]
+    delete wrappedIdToOgToken[_id];
+    _burn(_id);
   }
 
   function supportsInterface(bytes4 interfaceId)

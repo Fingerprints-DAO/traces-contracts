@@ -10,6 +10,9 @@ dayjs.extend(duration)
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
 
+const getAccessControlError = (address: string, role: string) =>
+  `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
+
 describe('Traces basic', function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -121,7 +124,7 @@ describe('Traces admin', function () {
     const EDITOR_ROLE = await trace.EDITOR_ROLE()
 
     await expect(trace.connect(deployer).addToken(...args)).to.revertedWith(
-      `AccessControl: account ${deployer.address.toLowerCase()} is missing role ${EDITOR_ROLE}`
+      getAccessControlError(deployer.address, EDITOR_ROLE)
     )
   })
 
@@ -283,6 +286,19 @@ describe('Traces functionality', function () {
       staker1,
       staker2,
     }
+  }
+  async function mintAndStake(
+    fixture: Awaited<ReturnType<typeof deployFixture>>
+  ) {
+    const { traces, owner, tokenData, staker1, erc20mock } = fixture
+    const [contractAddress, nftId, amount] = tokenData
+
+    await Promise.all([
+      traces.connect(owner).addToken(...tokenData),
+      erc20mock.connect(staker1).approve(traces.address, amount),
+    ])
+    await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+    return await traces.wnftList(contractAddress, nftId)
   }
 
   describe('Mint an WNFT', async function () {
@@ -480,19 +496,6 @@ describe('Traces functionality', function () {
     })
   })
   describe('unstake()', async function () {
-    async function mintAndStake(
-      fixture: Awaited<ReturnType<typeof deployFixture>>
-    ) {
-      const { traces, owner, tokenData, staker1, erc20mock } = fixture
-      const [contractAddress, nftId, amount] = tokenData
-
-      await Promise.all([
-        traces.connect(owner).addToken(...tokenData),
-        erc20mock.connect(staker1).approve(traces.address, amount),
-      ])
-      await traces.connect(staker1).outbid(contractAddress, nftId, amount)
-      return await traces.wnftList(contractAddress, nftId)
-    }
     it('returns error if user is not the wnft owner', async function () {
       const fixture = await loadFixture(deployFixture)
       const { traces, staker2 } = fixture
@@ -500,7 +503,7 @@ describe('Traces functionality', function () {
 
       await expect(
         traces.connect(staker2).unstake(wNFT.tokenId)
-      ).to.revertedWithCustomError(traces, ERROR.NO_PREMISSION)
+      ).to.revertedWithCustomError(traces, ERROR.NO_PERMISSION)
     })
     it('unstakes user $prints and return the wnft', async function () {
       const fixture = await loadFixture(deployFixture)
@@ -534,7 +537,89 @@ describe('Traces functionality', function () {
       )
     })
   })
-  // unstaked wtoken
+  describe('removeToken(wnftId)', async function () {
+    it('returns error when trying to delete a wnft without editor role', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker2, tokenData, owner } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const wNFT = await traces.wnftList(contractAddress, nftId)
+      const EDITOR_ROLE = await traces.EDITOR_ROLE()
+
+      await expect(
+        traces.connect(staker2).deleteToken(wNFT.tokenId)
+      ).to.revertedWith(getAccessControlError(staker2.address, EDITOR_ROLE))
+    })
+    it('returns error when trying to delete staked wnft', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker2, owner } = fixture
+      const wNFT = await mintAndStake(fixture)
+
+      await expect(
+        traces.connect(owner).deleteToken(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.NO_PERMISSION)
+    })
+    it('removes wnft from wnftList', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, owner, tokenData } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const wNFT = await traces.wnftList(contractAddress, nftId)
+
+      await traces.connect(owner).deleteToken(wNFT.tokenId)
+
+      expect((await traces.wnftList(contractAddress, nftId)).ogTokenId).to.eq(0)
+    })
+    it('removes wnft from wrappedIdToOgToken', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, owner, tokenData } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const wNFT = await traces.wnftList(contractAddress, nftId)
+      await traces.connect(owner).deleteToken(wNFT.tokenId)
+
+      expect((await traces.wrappedIdToOgToken(wNFT.tokenId)).id).to.eq(0)
+    })
+    it('decreases collection.tokenCount', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, owner, tokenData } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const wNFT = await traces.wnftList(contractAddress, nftId)
+      const { tokenCount } = await traces.collection(wNFT.ogTokenAddress)
+      await traces.connect(owner).deleteToken(wNFT.tokenId)
+
+      expect((await traces.collection(wNFT.ogTokenAddress)).tokenCount).to.eq(
+        tokenCount.sub(1)
+      )
+    })
+    it('burns the wnft successfully when it is deleted', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, owner, tokenData } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const oldContractBalance = await traces.balanceOf(traces.address)
+
+      const wNFT = await traces.wnftList(contractAddress, nftId)
+      await traces.connect(owner).deleteToken(wNFT.tokenId)
+
+      expect(await traces.balanceOf(traces.address)).to.eq(
+        oldContractBalance.sub(1)
+      )
+    })
+  })
+  // it('returns error when try to delete a wnft staked', async function () {
+  //   const fixture = await loadFixture(deployFixture)
+  //   const { traces, erc20mock, owner } = fixture
+  //   const wNFT = await mintAndStake(fixture)
+
+  //   await expect(traces.connect(owner).unstake(wNFT.tokenId)).to.
+  // })
   // delete unstaked wtoken
   // getUri with proxy string
 })
