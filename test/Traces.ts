@@ -169,17 +169,12 @@ describe('Traces admin', function () {
     const [_x, event] = events
     const { tokenCount } = await trace.collection(tokenAddress)
 
-    expect(event?.args).to.deep.eq([
-      tokenAddress,
-      tokenId,
-      tokenCount.sub(1),
-      minStake,
-      holdPeriod,
-    ])
     expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
     expect(event?.args?.tokenId).to.eq(tokenCount.sub(1))
-    expect(event?.event).to.eq('TokenAdded')
+    expect(tx)
+      .to.emit(trace, 'TokenAdded')
+      .withArgs(tokenAddress, tokenId, tokenCount.sub(1), minStake, holdPeriod)
   })
   it('mints the wnft to the contract after adding the data', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
