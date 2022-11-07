@@ -5,6 +5,7 @@ import 'hardhat-watcher'
 import 'hardhat-contract-sizer'
 import 'hardhat-docgen'
 import 'dotenv/config'
+import './tasks'
 
 // import 'hardhat-docgen'
 
@@ -29,12 +30,15 @@ const accounts = {
 
 const config: HardhatUserConfig = {
   solidity: '0.8.17',
+  settings: {
+    optimizer: {
+      enabled: true,
+      runs: 10_000,
+    },
+  },
   networks: {
     hardhat: {
-      chainId: 1337,
-      accounts: {
-        accountsBalance: '10000000000000000000000',
-      },
+      initialBaseFeePerGas: 0,
     },
     rinkeby: {
       url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,

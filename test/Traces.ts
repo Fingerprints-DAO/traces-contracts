@@ -23,7 +23,12 @@ describe('Traces basic', function () {
     const FPVaultAddress = faker.finance.ethereumAddress()
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
-    const erc20mock = await ERC20Mock.deploy('prints', '$prints', 0)
+    const erc20mock = await ERC20Mock.deploy(
+      deployer.address,
+      'prints',
+      '$prints',
+      0
+    )
 
     const Traces = await ethers.getContractFactory('Traces')
     const trace = await Traces.deploy(
@@ -91,7 +96,12 @@ describe('Traces admin', function () {
     const FPVaultAddress = faker.finance.ethereumAddress()
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
-    const erc20mock = await ERC20Mock.deploy('prints', '$prints', 0)
+    const erc20mock = await ERC20Mock.deploy(
+      deployer.address,
+      'prints',
+      '$prints',
+      0
+    )
 
     const Traces = await ethers.getContractFactory('Traces')
     const trace = await Traces.deploy(
@@ -241,6 +251,7 @@ describe('Traces functionality', function () {
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
     const erc20mock = await ERC20Mock.deploy(
+      deployer.address,
       'prints',
       '$prints',
       ethers.utils.parseUnits(amount.toString(), 18)

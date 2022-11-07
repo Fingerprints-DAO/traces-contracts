@@ -5,11 +5,12 @@ import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
 
 contract ERC721Mock is ERC721Enumerable {
   constructor(
+    address _to,
     string memory name,
     string memory symbol,
     uint256 tokenId
   ) ERC721(name, symbol) {
-    _mint(msg.sender, tokenId);
+    _mint(_to, tokenId);
   }
 
   function mint(address addr, uint256 tokenId) public {
