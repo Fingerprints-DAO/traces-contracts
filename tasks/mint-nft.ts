@@ -4,13 +4,13 @@ task('mint-nfts', 'Mints a NFT to be wrapped')
   .addOptionalParam(
     'erc721Mock',
     'The `Mock` contract address',
-    '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+    '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
     types.string
   )
   .addOptionalParam(
     'mintTo',
     'Mint to address',
-    '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+    '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
     types.string
   )
   .addOptionalParam('qty', 'Quantity to mint', 10, types.int)

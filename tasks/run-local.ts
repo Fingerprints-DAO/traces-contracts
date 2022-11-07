@@ -56,6 +56,14 @@ task(
     }),
   ])
 
+  await run('traces-add-nft', {
+    traces: contracts.Traces.address,
+    ogTokenAddress: contracts.ERC721Mock.address,
+    ogTokenId: 11,
+    minStake: 100,
+    minHoldPeriod: 1000 * 60 * 10, // 10 minutes
+  })
+
   console.log(
     `Trace contracts deployed to local node at http://localhost:8545 (Chain ID: ${chainId})`
   )
@@ -64,6 +72,9 @@ task(
     `ERC20 Mock ($PRINTS) address: ${contracts.ERC20Mock.instance.address}`
   )
   console.log(`Traces address: ${contracts.Traces.instance.address}`)
+  console.log('DAOVault.address', DAOVault.address)
+  console.log('Minted $prints tokens to:')
+  console.log(deployer.address, bob.address, marcia.address)
 
   await ethers.provider.send('evm_setIntervalMining', [12_000])
 

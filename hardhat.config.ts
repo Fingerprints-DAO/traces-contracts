@@ -40,10 +40,10 @@ const config: HardhatUserConfig = {
     hardhat: {
       initialBaseFeePerGas: 0,
     },
-    rinkeby: {
-      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
+    goerli: {
+      url: `https://goerli.infura.io/v3/${process.env.INFURA_API_KEY}`,
       accounts,
-      chainId: 4,
+      chainId: 5,
       // @ts-ignore
       live: true,
       saveDeployments: true,

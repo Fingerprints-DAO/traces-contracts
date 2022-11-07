@@ -46,13 +46,13 @@ describe('Traces basic', function () {
 
       expect(await trace.totalSupply()).to.eq(0)
     })
-    it('grants DEFAULT_ADMIN_ROLE to the deployer', async function () {
+    it('checks DEFAULT_ADMIN_ROLE to the deployer', async function () {
       const { trace, owner } = await loadFixture(deployFixture)
 
       expect(await trace.hasRole(trace.DEFAULT_ADMIN_ROLE(), owner.address)).to
         .be.true
     })
-    it('grants EDITOR_ROLE to the deployer', async function () {
+    it('checks EDITOR_ROLE to the deployer', async function () {
       const { trace, owner } = await loadFixture(deployFixture)
 
       expect(await trace.hasRole(trace.EDITOR_ROLE(), owner.address)).to.be.true
@@ -111,7 +111,12 @@ describe('Traces admin', function () {
     )
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
-    const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
+    const erc721mock = await ERC721Mock.deploy(
+      deployer.address,
+      'nft',
+      'nft',
+      minter1.address
+    )
 
     const tokenData = generateTokenData({ tokenAddress: erc721mock.address })
 
@@ -247,7 +252,12 @@ describe('Traces functionality', function () {
     const amount = 1_000_000
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
-    const erc721mock = await ERC721Mock.deploy('nft', 'nft', minter1.address)
+    const erc721mock = await ERC721Mock.deploy(
+      deployer.address,
+      'nft',
+      'nft',
+      minter1.address
+    )
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
     const erc20mock = await ERC20Mock.deploy(
