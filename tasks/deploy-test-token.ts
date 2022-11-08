@@ -5,7 +5,7 @@ async function delay(seconds: number) {
 }
 
 task('deploy-test-token', 'Deploy ERC-20 Custom tokens').setAction(
-  async ({ descriptorAddress, seederAddress }, { ethers, run, network }) => {
+  async (_, { ethers }) => {
     const [deployer] = await ethers.getSigners()
     console.log(`Deploying from address ${deployer.address}`)
 

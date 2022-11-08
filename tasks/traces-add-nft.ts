@@ -37,8 +37,13 @@ task('traces-add-nft', 'Add NFTs to traces')
         .connect(deployer)
         .addToken(ogTokenAddress, ogTokenId, minStake, minHoldPeriod)
 
-      const { tokenId, collectionId, minStakeValue, lastOutbidTimestamp } =
-        await nftContract.wnftList(ogTokenAddress, ogTokenId) // access the list to get wrapped nft
+      const {
+        tokenId,
+        collectionId,
+        firstStakePrice,
+        stakedAmount,
+        lastOutbidTimestamp,
+      } = await nftContract.wnftList(ogTokenAddress, ogTokenId) // access the list to get wrapped nft
 
       console.log(`Token added:`)
       console.table({
@@ -46,7 +51,8 @@ task('traces-add-nft', 'Add NFTs to traces')
         ogTokenId,
         tokenId: tokenId.toNumber(),
         collectionId: collectionId.toNumber(),
-        minStakeValue: minStakeValue.toNumber(),
+        firstStakePrice: firstStakePrice.toNumber(),
+        stakedAmount: stakedAmount.toNumber(),
         minHoldPeriod,
         lastOutbidTimestamp: lastOutbidTimestamp.toNumber(),
       })

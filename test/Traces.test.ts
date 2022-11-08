@@ -166,7 +166,7 @@ describe('Traces admin', function () {
     expect(
       (await conn.wnftList(tokenAddress, tokenId)).ogTokenAddress
     ).to.match(new RegExp(tokenAddress, 'i'))
-    expect((await conn.wnftList(tokenAddress, tokenId)).minStakeValue).to.eq(
+    expect((await conn.wnftList(tokenAddress, tokenId)).firstStakePrice).to.eq(
       minStake
     )
   })
@@ -236,8 +236,6 @@ describe('Traces admin', function () {
       conn.addToken(erc721mock.address, tokenId, minStake, holdPeriod)
     ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
   })
-  // unstaked wtoken
-  // delete unstaked wtoken
 })
 
 describe('Traces functionality', function () {
@@ -550,7 +548,7 @@ describe('Traces functionality', function () {
       const fixture = await loadFixture(deployFixture)
       const { traces, staker1, erc20mock } = fixture
       const wNFT = await mintAndStake(fixture)
-      const stakedAmount = wNFT.minStakeValue
+      const stakedAmount = wNFT.firstStakePrice
       const stakerBalance = await erc20mock.balanceOf(staker1.address)
 
       await traces.connect(staker1).unstake(wNFT.tokenId)
@@ -564,7 +562,7 @@ describe('Traces functionality', function () {
       const fixture = await loadFixture(deployFixture)
       const { traces, erc20mock, staker2, staker1, owner } = fixture
       const wNFT = await mintAndStake(fixture)
-      const stakedAmount = wNFT.minStakeValue
+      const stakedAmount = wNFT.firstStakePrice
       const stakerBalance = await erc20mock.balanceOf(staker1.address)
       const EDITOR_ROLE = await traces.EDITOR_ROLE()
 

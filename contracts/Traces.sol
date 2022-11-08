@@ -57,7 +57,8 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256 ogTokenId;
     uint256 tokenId;
     uint256 collectionId;
-    uint256 minStakeValue;
+    uint256 firstStakePrice;
+    uint256 stakedAmount;
     uint256 minHoldPeriod;
     uint256 lastOutbidTimestamp;
   }
@@ -130,7 +131,18 @@ contract Traces is ERC721Enumerable, AccessControl {
     return
       wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
         wrappedIdToOgToken[_tokenId].id
-      ].minStakeValue;
+      ].stakedAmount;
+  }
+
+  function getToken(uint256 _tokenId)
+    public
+    view
+    returns (WrappedToken memory)
+  {
+    return
+      wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
+        wrappedIdToOgToken[_tokenId].id
+      ];
   }
 
   /**
@@ -142,7 +154,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   function addToken(
     address _ogTokenAddress,
     uint256 _ogTokenId,
-    uint256 _minStakeValue,
+    uint256 _firstStakePrice,
     uint256 _minHoldPeriod
   ) public onlyRole(EDITOR_ROLE) _isERC721Contract(_ogTokenAddress) {
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
@@ -169,7 +181,8 @@ contract Traces is ERC721Enumerable, AccessControl {
       ogTokenId: _ogTokenId,
       tokenId: newTokenId,
       collectionId: collection[_ogTokenAddress].id,
-      minStakeValue: _minStakeValue,
+      firstStakePrice: _firstStakePrice,
+      stakedAmount: 0,
       minHoldPeriod: _minHoldPeriod,
       lastOutbidTimestamp: 0
     });
@@ -185,7 +198,7 @@ contract Traces is ERC721Enumerable, AccessControl {
       _ogTokenAddress,
       _ogTokenId,
       newTokenId,
-      _minStakeValue,
+      _firstStakePrice,
       _minHoldPeriod
     );
   }
@@ -203,13 +216,14 @@ contract Traces is ERC721Enumerable, AccessControl {
     if (token.ogTokenId != _ogTokenId)
       revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
-    hasEnoughToStake(_amount, token.minStakeValue);
+    // TODO: First Stake price will be changed to getPrice() from dutch auction
+    hasEnoughToStake(_amount, token.firstStakePrice);
 
-    if (token.minStakeValue > _amount) {
+    if (token.firstStakePrice > _amount) {
       revert InvalidAmount(
         _ogTokenAddress,
         _ogTokenId,
-        token.minStakeValue,
+        token.firstStakePrice,
         _amount
       );
     }
@@ -218,17 +232,18 @@ contract Traces is ERC721Enumerable, AccessControl {
       revert HoldPeriod(_ogTokenAddress, _ogTokenId);
 
     wnftList[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block.timestamp;
+    wnftList[_ogTokenAddress][_ogTokenId].stakedAmount = _amount;
     address _owner = this.ownerOf(token.tokenId);
     // transfer wnft from this contract to the user
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
     // transfer erc20 custom token from sender to this contract
     IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
     // transfer erc20 staked token back to the oubidded user
-    IERC20(customTokenAddress).approve(address(this), token.minStakeValue);
+    IERC20(customTokenAddress).approve(address(this), token.stakedAmount);
     IERC20(customTokenAddress).transferFrom(
       address(this),
       _owner,
-      token.minStakeValue
+      token.stakedAmount
     );
   }
 
@@ -242,14 +257,22 @@ contract Traces is ERC721Enumerable, AccessControl {
     if (msg.sender != _owner && !hasRole(EDITOR_ROLE, msg.sender))
       revert NoPermission(_id, _owner);
 
-    uint256 stakedValue = getStakedValue(_id);
+    WrappedToken memory token = getToken(_id);
 
+    wnftList[wrappedIdToOgToken[_id].tokenAddress][wrappedIdToOgToken[_id].id]
+      .stakedAmount = 0;
+    wnftList[wrappedIdToOgToken[_id].tokenAddress][wrappedIdToOgToken[_id].id]
+      .lastOutbidTimestamp = 0;
     // allowance of this contract
-    IERC20(customTokenAddress).approve(address(this), stakedValue);
+    IERC20(customTokenAddress).approve(address(this), token.stakedAmount);
     // transfer user wnft to this contract
     _safeTransfer(_owner, address(this), _id, '');
     // transfer erc20 custom token from this contract to the user
-    IERC20(customTokenAddress).transferFrom(address(this), _owner, stakedValue);
+    IERC20(customTokenAddress).transferFrom(
+      address(this),
+      _owner,
+      token.stakedAmount
+    );
   }
 
   /**
