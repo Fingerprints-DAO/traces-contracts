@@ -4,7 +4,6 @@ import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
-// import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/access/AccessControl.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
@@ -61,6 +60,8 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256 stakedAmount;
     uint256 minHoldPeriod;
     uint256 lastOutbidTimestamp;
+    uint256 dutchAuctionDuration;
+    uint256 dutchMultiplier;
   }
   struct CollectionInfo {
     address ogTokenAddress;
@@ -145,6 +146,26 @@ contract Traces is ERC721Enumerable, AccessControl {
       ];
   }
 
+  function getCurrentPrice(
+    uint256 priceLimit,
+    uint256 lastTimestamp,
+    uint256 dutchMultiplier,
+    uint256 duration
+  ) public view returns (uint256) {
+    // TODO: get decimals from erc20
+    uint256 precision = 10**18;
+    // Auction ended
+    if (block.timestamp >= lastTimestamp.add(duration))
+      return priceLimit.mul(precision);
+    return
+      priceLimit.mul(dutchMultiplier).mul(
+        precision -
+          (block.timestamp - lastTimestamp).mul(precision).div(duration)
+        // (block.timestamp - lastTimestamp + guarantee).mul(PRECISION).div(duration)
+      );
+    // .div(PREC);
+  }
+
   /**
    * @notice Add token to be minted/wrapped
    * @dev Only owner.
@@ -184,7 +205,9 @@ contract Traces is ERC721Enumerable, AccessControl {
       firstStakePrice: _firstStakePrice,
       stakedAmount: 0,
       minHoldPeriod: _minHoldPeriod,
-      lastOutbidTimestamp: 0
+      lastOutbidTimestamp: 0,
+      dutchMultiplier: 10,
+      dutchAuctionDuration: 86400000 // 24 hours
     });
     wrappedIdToOgToken[newTokenId] = OgToken({
       tokenAddress: _ogTokenAddress,

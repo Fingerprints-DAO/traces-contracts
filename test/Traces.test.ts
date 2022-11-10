@@ -9,6 +9,7 @@ dayjs.extend(duration)
 
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
+import { formatUnits } from 'ethers/lib/utils'
 
 const getAccessControlError = (address: string, role: string) =>
   `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
@@ -574,6 +575,53 @@ describe('Traces functionality', function () {
       expect(await erc20mock.balanceOf(staker1.address)).to.eq(
         stakerBalance.add(stakedAmount)
       )
+    })
+    it('gets price after half of dutch auction duration', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces } = fixture
+      const latestBlockTimestamp = (await time.latest()) * 1000
+      const minPrice = 1
+      const dutchMultiplier = 10
+      const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+        .subtract(2, 'hour')
+        .unix()
+      const duration =
+        dayjs(latestBlockTimestamp).add(4, 'hour').unix() -
+        dayjs(latestBlockTimestamp).unix()
+
+      const price = (
+        await traces.getCurrentPrice(
+          minPrice,
+          lastOutbidTimestamp,
+          dutchMultiplier,
+          duration
+        )
+      ).toString()
+
+      expect(Number(formatUnits(price))).to.eq(5)
+    })
+    it('gets price after 1/3 of dutch auction duration', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces } = fixture
+      const latestBlockTimestamp = (await time.latest()) * 1000
+      const minPrice = 1
+      const dutchMultiplier = 10
+      const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+        .subtract(1, 'hour')
+        .unix()
+      const duration =
+        dayjs(latestBlockTimestamp).add(3, 'hour').unix() -
+        dayjs(latestBlockTimestamp).unix()
+
+      const price = (
+        await traces.getCurrentPrice(
+          minPrice,
+          lastOutbidTimestamp,
+          dutchMultiplier,
+          duration
+        )
+      ).toString()
+      expect(Number(formatUnits(price))).to.closeTo(6.6, 0.1)
     })
   })
   describe('removeToken(wnftId)', async function () {

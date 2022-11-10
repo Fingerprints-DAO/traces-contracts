@@ -62,7 +62,7 @@ const config: HardhatUserConfig = {
       files: ['./test/**/*'],
       verbose: false,
       clearOnStart: true,
-      // runOnLaunch: true,
+      runOnLaunch: false,
     },
   },
   contractSizer: {
