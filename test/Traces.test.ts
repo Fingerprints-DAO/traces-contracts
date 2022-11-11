@@ -175,11 +175,19 @@ describe('Traces admin', function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
     const conn = trace.connect(owner)
-    const [tokenAddress, _, minStake, holdPeriod] = tokenData
+    const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
+      tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
-    const tx = await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
+    const tx = await conn.addToken(
+      tokenAddress,
+      tokenId,
+      minStake,
+      holdPeriod,
+      multiplier,
+      duration
+    )
     const { events } = await tx.wait()
     //@ts-ignore
     const [_x, event] = events
@@ -196,13 +204,21 @@ describe('Traces admin', function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
     const conn = trace.connect(owner)
-    const [tokenAddress, _, minStake, holdPeriod] = tokenData
+    const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
+      tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
 
     expect(await trace.balanceOf(trace.address)).to.eq(0)
-    await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
+    await conn.addToken(
+      tokenAddress,
+      tokenId,
+      minStake,
+      holdPeriod,
+      multiplier,
+      duration
+    )
     const { tokenCount } = await trace.collection(tokenAddress)
 
     expect(await trace.balanceOf(trace.address)).to.eq(1)
@@ -212,21 +228,37 @@ describe('Traces admin', function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
     const conn = trace.connect(owner)
-    const [tokenAddress, _, minStake, holdPeriod] = tokenData
+    const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
+      tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
-    await conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
+    await conn.addToken(
+      tokenAddress,
+      tokenId,
+      minStake,
+      holdPeriod,
+      multiplier,
+      duration
+    )
 
     await expect(
-      conn.addToken(tokenAddress, tokenId, minStake, holdPeriod)
+      conn.addToken(
+        tokenAddress,
+        tokenId,
+        minStake,
+        holdPeriod,
+        multiplier,
+        duration
+      )
     ).to.revertedWithCustomError(trace, ERROR.DUPLICATED_TOKEN)
   })
   it('returns error if FP vault is not owner of the sent token', async function () {
     const { erc721mock, minter1, owner, trace } = await loadFixture(
       deployFixtureWith721
     )
-    const [tokenId, _, minStake, holdPeriod] = generateTokenData()
+    const [tokenId, _, minStake, holdPeriod, multiplier, duration] =
+      generateTokenData()
     const conn = trace.connect(owner)
 
     await erc721mock.connect(minter1).mint(minter1.address, tokenId)
@@ -234,7 +266,14 @@ describe('Traces admin', function () {
     expect(await erc721mock.ownerOf(tokenId)).to.eq(minter1.address)
 
     await expect(
-      conn.addToken(erc721mock.address, tokenId, minStake, holdPeriod)
+      conn.addToken(
+        erc721mock.address,
+        tokenId,
+        minStake,
+        holdPeriod,
+        multiplier,
+        duration
+      )
     ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
   })
 })
@@ -380,11 +419,13 @@ describe('Traces functionality', function () {
       it('increase contract balance when user stakes', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount] = tokenData
+        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
         const tracesBalance = await erc20mock.balanceOf(traces.address)
 
         await Promise.all([
-          traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
+          traces
+            .connect(owner)
+            .addToken(contractAddress, nftId, amount, 0, multiplier, duration),
           erc20mock.connect(staker1).approve(traces.address, amount),
         ])
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
@@ -396,11 +437,13 @@ describe('Traces functionality', function () {
       it('decreases user balance when user stakes token', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount] = tokenData
+        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
         const userBalance = await erc20mock.balanceOf(staker1.address)
 
         await Promise.all([
-          traces.connect(owner).addToken(contractAddress, nftId, amount, 0),
+          traces
+            .connect(owner)
+            .addToken(contractAddress, nftId, amount, 0, multiplier, duration),
           erc20mock.connect(staker1).approve(traces.address, amount),
         ])
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
@@ -412,7 +455,7 @@ describe('Traces functionality', function () {
       it('allows user to mint after hold period', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount] = tokenData
+        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
         const latestBlockTimestamp = (await time.latest()) * 1000
         // const latestBlockTimestamp = new Date()
         const holdPeriod = dayjs(latestBlockTimestamp).add(2, 'hour')
@@ -420,7 +463,14 @@ describe('Traces functionality', function () {
         await Promise.all([
           traces
             .connect(owner)
-            .addToken(contractAddress, nftId, amount, holdPeriod.unix()),
+            .addToken(
+              contractAddress,
+              nftId,
+              amount,
+              holdPeriod.unix(),
+              multiplier,
+              duration
+            ),
           erc20mock.connect(staker1).approve(traces.address, amount),
         ])
 
@@ -435,12 +485,19 @@ describe('Traces functionality', function () {
       it('transfers the wnft to the user when outbidding', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount] = tokenData
+        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
         const latestBlockTimestamp = await time.latest()
 
         const tx = await traces
           .connect(owner)
-          .addToken(contractAddress, nftId, amount, latestBlockTimestamp)
+          .addToken(
+            contractAddress,
+            nftId,
+            amount,
+            latestBlockTimestamp,
+            multiplier,
+            duration
+          )
         const { events = [] } = await tx.wait()
         const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)
@@ -455,12 +512,26 @@ describe('Traces functionality', function () {
       it('transfers the wnft to the user when outbidding from another user', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        const [
+          contractAddress,
+          nftId,
+          amount,
+          holdPeriod,
+          multiplier,
+          duration,
+        ] = tokenData
         let latestBlockTimestamp = await time.latest()
 
         const tx = await traces
           .connect(owner)
-          .addToken(contractAddress, nftId, amount, holdPeriod)
+          .addToken(
+            contractAddress,
+            nftId,
+            amount,
+            holdPeriod,
+            multiplier,
+            duration
+          )
         const { events = [] } = await tx.wait()
         const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)
@@ -483,12 +554,26 @@ describe('Traces functionality', function () {
       it('transfers the wnft from owner when the user is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        const [
+          contractAddress,
+          nftId,
+          amount,
+          holdPeriod,
+          multiplier,
+          duration,
+        ] = tokenData
         let latestBlockTimestamp = await time.latest()
 
         const tx = await traces
           .connect(owner)
-          .addToken(contractAddress, nftId, amount, holdPeriod)
+          .addToken(
+            contractAddress,
+            nftId,
+            amount,
+            holdPeriod,
+            multiplier,
+            duration
+          )
         const { events = [] } = await tx.wait()
         const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)
@@ -515,9 +600,7 @@ describe('Traces functionality', function () {
         const balanceStaker1 = await erc20mock.balanceOf(staker1.address)
         let latestBlockTimestamp = await time.latest()
 
-        const tx = await traces
-          .connect(owner)
-          .addToken(contractAddress, nftId, amount, holdPeriod)
+        const tx = await traces.connect(owner).addToken(...tokenData)
         const { events = [] } = await tx.wait()
         const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)

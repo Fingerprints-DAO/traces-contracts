@@ -176,7 +176,9 @@ contract Traces is ERC721Enumerable, AccessControl {
     address _ogTokenAddress,
     uint256 _ogTokenId,
     uint256 _firstStakePrice,
-    uint256 _minHoldPeriod
+    uint256 _minHoldPeriod,
+    uint256 _dutchMultiplier,
+    uint256 _dutchAuctionDuration
   ) public onlyRole(EDITOR_ROLE) _isERC721Contract(_ogTokenAddress) {
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
@@ -206,8 +208,8 @@ contract Traces is ERC721Enumerable, AccessControl {
       stakedAmount: 0,
       minHoldPeriod: _minHoldPeriod,
       lastOutbidTimestamp: 0,
-      dutchMultiplier: 10,
-      dutchAuctionDuration: 86400000 // 24 hours
+      dutchMultiplier: _dutchMultiplier,
+      dutchAuctionDuration: _dutchAuctionDuration //86400000 // 24 hours
     });
     wrappedIdToOgToken[newTokenId] = OgToken({
       tokenAddress: _ogTokenAddress,

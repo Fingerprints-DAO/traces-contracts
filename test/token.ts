@@ -8,6 +8,15 @@ export function generateTokenData({
   tokenId = faker.datatype.number(10_000),
   minStake = BigNumber.from(faker.datatype.number(10_000)),
   holdPeriod = dayjs.duration({ days: 10 }).asSeconds(),
-} = {}): [string, number, BigNumber, number] {
-  return [tokenAddress, tokenId, minStake, holdPeriod]
+  dutchMultiplier = faker.datatype.number(10),
+  dutchAuctionDuration = dayjs.duration({ days: 10 }).asSeconds(),
+} = {}): [string, number, BigNumber, number, number, number] {
+  return [
+    tokenAddress,
+    tokenId,
+    minStake,
+    holdPeriod,
+    dutchMultiplier,
+    dutchAuctionDuration,
+  ]
 }
