@@ -35,7 +35,7 @@ task('traces-add-nft', 'Add NFTs to traces')
       // connect deployer account and call addToken
       await nftContract
         .connect(deployer)
-        .addToken(ogTokenAddress, ogTokenId, minStake, minHoldPeriod)
+        .addToken(ogTokenAddress, ogTokenId, minStake, minHoldPeriod, 10, 180)
 
       const {
         tokenId,
