@@ -10,6 +10,7 @@ dayjs.extend(duration)
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
 import { formatUnits } from 'ethers/lib/utils'
+import { Console } from 'console'
 
 const getAccessControlError = (address: string, role: string) =>
   `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
@@ -419,7 +420,14 @@ describe('Traces functionality', function () {
       it('increase contract balance when user stakes', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
+        const [
+          contractAddress,
+          nftId,
+          amount,
+          holdPeriod,
+          multiplier,
+          duration,
+        ] = tokenData
         const tracesBalance = await erc20mock.balanceOf(traces.address)
 
         await Promise.all([
@@ -437,7 +445,14 @@ describe('Traces functionality', function () {
       it('decreases user balance when user stakes token', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
+        const [
+          contractAddress,
+          nftId,
+          amount,
+          holdPeriod,
+          multiplier,
+          duration,
+        ] = tokenData
         const userBalance = await erc20mock.balanceOf(staker1.address)
 
         await Promise.all([
@@ -452,10 +467,11 @@ describe('Traces functionality', function () {
           userBalance.sub(amount)
         )
       })
-      it('allows user to mint after hold period', async function () {
+      it('allows user to outbid after hold period', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
+        const [contractAddress, nftId, amount, _, multiplier, duration] =
+          tokenData
         const latestBlockTimestamp = (await time.latest()) * 1000
         // const latestBlockTimestamp = new Date()
         const holdPeriod = dayjs(latestBlockTimestamp).add(2, 'hour')
@@ -485,7 +501,14 @@ describe('Traces functionality', function () {
       it('transfers the wnft to the user when outbidding', async function () {
         const { traces, owner, tokenData, staker1, erc20mock } =
           await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, multiplier, duration] = tokenData
+        const [
+          contractAddress,
+          nftId,
+          amount,
+          holdPeriod,
+          multiplier,
+          duration,
+        ] = tokenData
         const latestBlockTimestamp = await time.latest()
 
         const tx = await traces
@@ -512,86 +535,55 @@ describe('Traces functionality', function () {
       it('transfers the wnft to the user when outbidding from another user', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
-        const [
-          contractAddress,
-          nftId,
-          amount,
-          holdPeriod,
-          multiplier,
-          duration,
-        ] = tokenData
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
         let latestBlockTimestamp = await time.latest()
 
-        const tx = await traces
-          .connect(owner)
-          .addToken(
-            contractAddress,
-            nftId,
-            amount,
-            holdPeriod,
-            multiplier,
-            duration
-          )
-        const { events = [] } = await tx.wait()
-        const [_, event] = events
-        await erc20mock.connect(staker1).approve(traces.address, amount)
-        await erc20mock.connect(staker2).approve(traces.address, amount)
+        await traces.connect(owner).addToken(...tokenData)
 
+        await erc20mock.connect(staker1).approve(traces.address, amount)
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
 
         latestBlockTimestamp = await time.latest()
         await time.increaseTo(
           dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
         )
-        await traces.connect(staker2).outbid(contractAddress, nftId, amount)
+
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
+        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
+        await traces
+          .connect(staker2)
+          .outbid(contractAddress, nftId, currentPrice)
 
         expect(await traces.balanceOf(staker1.address)).to.eq(0)
         expect(await traces.balanceOf(staker2.address)).to.eq(1)
-        expect(await traces.ownerOf(event?.args?.tokenId)).to.eq(
-          staker2.address
-        )
+        expect(await traces.ownerOf(wNFT.tokenId)).to.eq(staker2.address)
       })
       it('transfers the wnft from owner when the user is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
-        const [
-          contractAddress,
-          nftId,
-          amount,
-          holdPeriod,
-          multiplier,
-          duration,
-        ] = tokenData
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
         let latestBlockTimestamp = await time.latest()
+        await traces.connect(owner).addToken(...tokenData)
 
-        const tx = await traces
-          .connect(owner)
-          .addToken(
-            contractAddress,
-            nftId,
-            amount,
-            holdPeriod,
-            multiplier,
-            duration
-          )
-        const { events = [] } = await tx.wait()
-        const [_, event] = events
         await erc20mock.connect(staker1).approve(traces.address, amount)
-        await erc20mock.connect(staker2).approve(traces.address, amount)
-
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
 
         latestBlockTimestamp = await time.latest()
         await time.increaseTo(
           dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
         )
-        await traces.connect(staker2).outbid(contractAddress, nftId, amount)
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
+
+        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
+        await traces
+          .connect(staker2)
+          .outbid(contractAddress, nftId, currentPrice)
 
         expect(await traces.balanceOf(staker1.address)).to.eq(0)
         expect(await traces.balanceOf(staker2.address)).to.eq(1)
-        expect(await traces.ownerOf(event?.args?.tokenId)).to.eq(
-          staker2.address
-        )
+        expect(await traces.ownerOf(wNFT.tokenId)).to.eq(staker2.address)
       })
       it('transfers the erc20 custom token back to the user when the same is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
@@ -600,19 +592,22 @@ describe('Traces functionality', function () {
         const balanceStaker1 = await erc20mock.balanceOf(staker1.address)
         let latestBlockTimestamp = await time.latest()
 
-        const tx = await traces.connect(owner).addToken(...tokenData)
-        const { events = [] } = await tx.wait()
-        const [_, event] = events
-        await erc20mock.connect(staker1).approve(traces.address, amount)
-        await erc20mock.connect(staker2).approve(traces.address, amount)
+        await traces.connect(owner).addToken(...tokenData)
 
+        await erc20mock.connect(staker1).approve(traces.address, amount)
         await traces.connect(staker1).outbid(contractAddress, nftId, amount)
 
         latestBlockTimestamp = await time.latest()
         await time.increaseTo(
           dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
         )
-        await traces.connect(staker2).outbid(contractAddress, nftId, amount)
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
+
+        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
+        await traces
+          .connect(staker2)
+          .outbid(contractAddress, nftId, currentPrice)
 
         expect(await erc20mock.balanceOf(staker1.address)).to.eq(balanceStaker1)
       })
@@ -659,52 +654,131 @@ describe('Traces functionality', function () {
         stakerBalance.add(stakedAmount)
       )
     })
-    it('gets price after half of dutch auction duration', async function () {
-      const fixture = await loadFixture(deployFixture)
-      const { traces } = fixture
-      const latestBlockTimestamp = (await time.latest()) * 1000
-      const minPrice = 1
-      const dutchMultiplier = 10
-      const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
-        .subtract(2, 'hour')
-        .unix()
-      const duration =
-        dayjs(latestBlockTimestamp).add(4, 'hour').unix() -
-        dayjs(latestBlockTimestamp).unix()
+  })
+  describe('dutch auction', async function () {
+    describe('getCurrentPrice()', async function () {
+      it('gets price after half of dutch auction duration', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces } = fixture
+        const latestBlockTimestamp = (await time.latest()) * 1000
+        const minPrice = 1
+        const dutchMultiplier = 10
+        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+          .subtract(2, 'hour')
+          .unix()
+        const duration =
+          dayjs(latestBlockTimestamp).add(4, 'hour').unix() -
+          dayjs(latestBlockTimestamp).unix()
 
-      const price = (
-        await traces.getCurrentPrice(
-          minPrice,
-          lastOutbidTimestamp,
-          dutchMultiplier,
-          duration
-        )
-      ).toString()
+        const price = (
+          await traces.getCurrentPrice(
+            minPrice,
+            lastOutbidTimestamp,
+            dutchMultiplier,
+            duration
+          )
+        ).toString()
 
-      expect(Number(formatUnits(price))).to.eq(5)
+        expect(Number(formatUnits(price))).to.eq(5)
+      })
+      it('gets price after 1/3 of dutch auction duration', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces } = fixture
+        const latestBlockTimestamp = (await time.latest()) * 1000
+        const minPrice = 1
+        const dutchMultiplier = 10
+        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+          .subtract(1, 'hour')
+          .unix()
+        const duration =
+          dayjs(latestBlockTimestamp).add(3, 'hour').unix() -
+          dayjs(latestBlockTimestamp).unix()
+
+        const price = (
+          await traces.getCurrentPrice(
+            minPrice,
+            lastOutbidTimestamp,
+            dutchMultiplier,
+            duration
+          )
+        ).toString()
+        expect(Number(formatUnits(price))).to.closeTo(6.6, 0.1)
+      })
     })
-    it('gets price after 1/3 of dutch auction duration', async function () {
-      const fixture = await loadFixture(deployFixture)
-      const { traces } = fixture
-      const latestBlockTimestamp = (await time.latest()) * 1000
-      const minPrice = 1
-      const dutchMultiplier = 10
-      const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
-        .subtract(1, 'hour')
-        .unix()
-      const duration =
-        dayjs(latestBlockTimestamp).add(3, 'hour').unix() -
-        dayjs(latestBlockTimestamp).unix()
+    describe('getWNFTPrice()', async function () {
+      it('returns error when wnft is on hold period', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces } = fixture
+        const wNFT = await mintAndStake(fixture)
 
-      const price = (
-        await traces.getCurrentPrice(
-          minPrice,
-          lastOutbidTimestamp,
-          dutchMultiplier,
-          duration
+        await expect(
+          traces.getWNFTPrice(wNFT.tokenId)
+        ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
+      })
+      it('returns max price when auction starts', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces, tokenData } = fixture
+        const wNFT = await mintAndStake(fixture)
+        const [, , amount, , multiplier] = tokenData
+        const latestBlockTimestamp = (await time.latest()) * 1000
+
+        await time.increaseTo(
+          dayjs(latestBlockTimestamp)
+            .add(wNFT.minHoldPeriod.toNumber(), 'second')
+            .unix()
         )
-      ).toString()
-      expect(Number(formatUnits(price))).to.closeTo(6.6, 0.1)
+        const price = await traces.getWNFTPrice(wNFT.tokenId)
+
+        expect(price).to.eql(amount.mul(multiplier))
+      })
+      it('returns lower price when auction ends', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces, tokenData } = fixture
+        const wNFT = await mintAndStake(fixture)
+        const [, , amount, , , dutchAuctionDuration] = tokenData
+        const latestBlockTimestamp = (await time.latest()) * 1000
+
+        await time.increaseTo(
+          dayjs(latestBlockTimestamp)
+            .add(wNFT.minHoldPeriod.toNumber(), 'second')
+            .add(dutchAuctionDuration, 'second')
+            .unix()
+        )
+        const price = await traces.getWNFTPrice(wNFT.tokenId)
+
+        expect(price).to.eql(amount)
+      })
+      it('returns half price when auction is in the middle of duration', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces, tokenData } = fixture
+        const wNFT = await mintAndStake(fixture)
+        const [, , amount, , multiplier, dutchAuctionDuration] = tokenData
+        const latestBlockTimestamp = (await time.latest()) * 1000
+
+        await time.increaseTo(
+          dayjs(latestBlockTimestamp)
+            .add(wNFT.minHoldPeriod.toNumber(), 'second')
+            .add(dutchAuctionDuration / 2, 'second')
+            .unix()
+        )
+        const price = await traces.getWNFTPrice(wNFT.tokenId)
+
+        expect(Number(formatUnits(price))).to.eql(
+          Number(formatUnits(amount)) * (multiplier / 2)
+        )
+      })
+      it('returns initial price when wnft is unstaked', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces, owner, tokenData } = fixture
+        const [contractAddress, nftId, amount] = tokenData
+
+        await traces.connect(owner).addToken(...tokenData)
+
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const price = await traces.getWNFTPrice(wNFT.tokenId)
+
+        expect(Number(formatUnits(price))).to.eql(Number(formatUnits(amount)))
+      })
     })
   })
   describe('removeToken(wnftId)', async function () {

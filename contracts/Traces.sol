@@ -37,6 +37,7 @@ contract Traces is ERC721Enumerable, AccessControl {
 
   // Address of ERC20 token accepted
   address public customTokenAddress;
+  uint256 public customTokenDecimals = 10**18;
 
   // Enabled tokens to be wrapped
   // Mapping [ogTokenAddress][ogTokenId] => WrappedToken
@@ -152,18 +153,39 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256 dutchMultiplier,
     uint256 duration
   ) public view returns (uint256) {
-    // TODO: get decimals from erc20
-    uint256 precision = 10**18;
     // Auction ended
     if (block.timestamp >= lastTimestamp.add(duration))
-      return priceLimit.mul(precision);
+      return priceLimit.mul(customTokenDecimals);
+
     return
       priceLimit.mul(dutchMultiplier).mul(
-        precision -
-          (block.timestamp - lastTimestamp).mul(precision).div(duration)
-        // (block.timestamp - lastTimestamp + guarantee).mul(PRECISION).div(duration)
+        customTokenDecimals.sub(
+          (block.timestamp.sub(lastTimestamp)).mul(customTokenDecimals).div(
+            duration
+          )
+        )
       );
+    // (block.timestamp - lastTimestamp + guarantee).mul(PRECISION).div(duration)
     // .div(PREC);
+  }
+
+  function getWNFTPrice(uint256 _id) public view returns (uint256) {
+    WrappedToken memory token = getToken(_id);
+
+    // Auction hasnt started. Current status is hold period
+    if (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod))
+      revert HoldPeriod(token.ogTokenAddress, token.ogTokenId);
+
+    // Return original price if token is unstaked
+    if (token.stakedAmount == 0) return token.firstStakePrice;
+
+    return
+      getCurrentPrice(
+        token.stakedAmount.div(customTokenDecimals),
+        token.lastOutbidTimestamp.add(token.minHoldPeriod),
+        token.dutchMultiplier,
+        token.dutchAuctionDuration
+      );
   }
 
   /**
@@ -241,20 +263,17 @@ contract Traces is ERC721Enumerable, AccessControl {
     if (token.ogTokenId != _ogTokenId)
       revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
-    // TODO: First Stake price will be changed to getPrice() from dutch auction
-    hasEnoughToStake(_amount, token.firstStakePrice);
+    // getWNFTPrice has isHoldPeriod validation
+    uint256 price = getWNFTPrice(token.tokenId);
 
-    if (token.firstStakePrice > _amount) {
-      revert InvalidAmount(
-        _ogTokenAddress,
-        _ogTokenId,
-        token.firstStakePrice,
-        _amount
-      );
+    hasEnoughToStake(_amount, price);
+
+    if (price > _amount) {
+      revert InvalidAmount(_ogTokenAddress, _ogTokenId, price, _amount);
     }
 
-    if (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod))
-      revert HoldPeriod(_ogTokenAddress, _ogTokenId);
+    // if (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod))
+    //   revert HoldPeriod(_ogTokenAddress, _ogTokenId);
 
     wnftList[_ogTokenAddress][_ogTokenId].lastOutbidTimestamp = block.timestamp;
     wnftList[_ogTokenAddress][_ogTokenId].stakedAmount = _amount;

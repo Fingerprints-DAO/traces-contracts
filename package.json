@@ -13,7 +13,7 @@
     "task:traces-add-nft": "hardhat traces-add-nft",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 HARDHAT_DEPLOY_FIXTURE=true CONTRACT_SIZER_STRICT_DISABLE=true hh coverage --solcoverjs ./.solcover.js",
     "run:docs": "hardhat compile",
-    "compile": "hardhat compile && tsc"
+    "compile": "hardhat compile"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.7.3"
