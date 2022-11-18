@@ -1,6 +1,6 @@
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import faker from 'faker'
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
@@ -9,8 +9,7 @@ dayjs.extend(duration)
 
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
-import { formatUnits } from 'ethers/lib/utils'
-import { Console } from 'console'
+import { formatUnits, parseUnits } from 'ethers/lib/utils'
 
 const getAccessControlError = (address: string, role: string) =>
   `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
@@ -315,7 +314,7 @@ describe('Traces functionality', function () {
 
     const tokenData = generateTokenData({
       tokenAddress: erc721mock.address,
-      minStake: ethers.utils.parseUnits('100000', 18),
+      minStake: parseUnits(faker.datatype.number(10_000).toString(), 18),
     })
 
     await Promise.all([

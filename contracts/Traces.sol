@@ -25,6 +25,13 @@ error InvalidTokenId(address ogTokenAddress, uint256 ogTokenId);
 error HoldPeriod(address ogTokenAddress, uint256 ogTokenId);
 error NoPermission(uint256 tokenId, address owner);
 
+/// @title Traces Smart Contract by Fingerprints DAO - v1
+/// @author @TheArodEth - thearod.dev
+/// @notice It allows $prints(Fingerprints DAO token) holders to mint a wrapped version of a NFT owned by the Fingerprints DAO by staking a quantity of $prints for each one.
+/// Only 1 wrapped NFT per NFT is allowed. Also it's possible to outbid a wrapped NFT from another user and unstake the value if wanted.
+/// Only NFTs from an ERC721 contracts are allowed to be used here
+/// @dev This contract is extended of erc721 and mint NFTs based in the original NFT added by these contract functions.
+/// There are only 2 Roles: Admin and Editor.
 contract Traces is ERC721Enumerable, AccessControl {
   using ERC165Checker for address;
   using SafeMath for uint256;
@@ -32,17 +39,29 @@ contract Traces is ERC721Enumerable, AccessControl {
   bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
 
-  // Address where NFTs are. These NFTs will be allowed to be wrapped
+  /// @notice Stores the Fingerprints DAO vault address
+  /// @dev It's used to check the ownership of the DAO when adding a original NFT to be wrapped and used by members
+  /// @return A wallet address
   address public vaultAddress;
 
-  // Address of ERC20 token accepted
+  /// @notice Stores custom token details as ERC20 smart contract address and decimals used on this token
+  /// @dev Current it stores the $prints details. The current token from Fingerprints DAO. It's not possible to get decimals from erc20 contract, that is why we need it set manually.
+  /// @return A smart contract address and decimals from this smart contract
   address public customTokenAddress;
   uint256 public customTokenDecimals = 10**18;
 
-  // Enabled tokens to be wrapped
-  // Mapping [ogTokenAddress][ogTokenId] => WrappedToken
+  /// @notice Stores a list of wrapped token(NFT) created and minted
+  /// @dev The list has 2 keys to access the wrapped token: original token address and original token id
+  /// Mapping [ogTokenAddress][ogTokenId] => WrappedToken
   mapping(address => mapping(uint256 => WrappedToken)) public wnftList;
+
+  /// @notice Stores a list with info of original tokens accessed by wnft.id
+  /// @dev Used to get details of original token using the wrapped token id
   mapping(uint256 => OgToken) public wrappedIdToOgToken;
+
+  /// @notice Stores a list with info about the original collection added
+  /// @dev Used to list collections with wrapped nfts and create a namespace id for each original collection
+  /// It's based on address of original erc721 NFT
   mapping(address => CollectionInfo) public collection;
 
   uint256 public collectionCounter = 1;
@@ -53,22 +72,41 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256 id;
   }
   struct WrappedToken {
+    // original ERC71 smart contract address
     address ogTokenAddress;
+    // original ERC71 NFT ID
     uint256 ogTokenId;
+    // ID created by this smart contract after minting the wrapped NFT
     uint256 tokenId;
+    // Collection ID created(grouped by same nft collections) by this smart contract after minting the wrapped NFT
     uint256 collectionId;
+    // Stake price defined when add a new NFT by admin. This price is used when WNFT is unstaked
     uint256 firstStakePrice;
+    // If WNFT is staked, this hold the amount staked to get this WNFT
     uint256 stakedAmount;
+    // The time (in seconds) users need to wait to outbid this WNFT.
     uint256 minHoldPeriod;
+    // The last time (in unix) that this WNFT was outbid
     uint256 lastOutbidTimestamp;
+    // The time (in seconds) this wnft will be on dutch auction after an hold period
     uint256 dutchAuctionDuration;
+    // The multiplicator used to staked amount when in dutch auction state
     uint256 dutchMultiplier;
   }
   struct CollectionInfo {
+    // original erc721 nft address
     address ogTokenAddress;
+    // generated id by this contract when adding the first nft of a collection
     uint256 id;
+    // number of WNFTs created in this contract of this collection
     uint256 tokenCount;
   }
+
+  /// @notice When adding a token, call this event
+  /// @param ogTokenAddress original erc721 contract address
+  /// @param ogTokenId original erc721 NFT ID
+  /// @param tokenId wnft id created in this contract
+  /// firstStakePrice and minHoldPeriod are sent as a not indexed parameters
   event TokenAdded(
     address indexed ogTokenAddress,
     uint256 indexed ogTokenId,
@@ -77,11 +115,16 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256
   );
 
+  /// @notice Starts the contract and name it as Fingerpints Traces with FPTR symbol
+  /// @dev Sets the basic needed to run this contract
+  /// @param _adminAddress the user to be add the ADMIN and EDITOR roles
+  /// @param _vaultAddress vault where allowed NFTs are to be used in this contract (Fingerprints DAO vault)
+  /// @param _tokenAddress ERC20 contract address to be used as currency for staking ($PRINTS)
   constructor(
     address _adminAddress,
     address _vaultAddress,
     address _tokenAddress
-  ) ERC721('Fingerprint Traces', 'FPTR') {
+  ) ERC721('Fingerprints Traces', 'FPTR') {
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
     _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
@@ -89,8 +132,9 @@ contract Traces is ERC721Enumerable, AccessControl {
   }
 
   /**
-   * @notice Validate contract address
+   * @notice Validates contract address
    * @dev Check if the address sent is a contract and an extension of ERC721
+   * @param _ogTokenAddress original erc721 contract address
    */
   modifier _isERC721Contract(address _ogTokenAddress) {
     if (!_ogTokenAddress.supportsInterface(IID_IERC721)) {
@@ -99,6 +143,11 @@ contract Traces is ERC721Enumerable, AccessControl {
     _;
   }
 
+  /// @notice Checks if WNFT is on hold period
+  /// @dev when in holding period, no user can outbid the wnft
+  /// @param lastOutbid timestamp of last time that was outbidded
+  /// @param minHoldPeriod time required to be hold before someone outbid it
+  /// @return bool if it's on hold period or not
   function isHoldPeriod(uint256 lastOutbid, uint256 minHoldPeriod)
     public
     view
@@ -108,6 +157,10 @@ contract Traces is ERC721Enumerable, AccessControl {
     return lastOutbid.add(minHoldPeriod) > block.timestamp;
   }
 
+  /// @notice Checks if the user has allowed enough tokens to this contract to move and stake
+  /// @dev Reverts with TransferNotAllowed error if user has not allowed this contract to move the erc20 tokens
+  /// @param _amount amount sent to stake and outbid the wnft
+  /// @param _minStake minumum required to stake and outbid the wnft
   function hasEnoughToStake(uint256 _amount, uint256 _minStake) public view {
     uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
       msg.sender,
@@ -120,7 +173,8 @@ contract Traces is ERC721Enumerable, AccessControl {
 
   /**
    * @notice Change Vault Address
-   * @dev Only owner. It sets a new address to vaultAddress variable
+   * @dev Only ADMIN. It sets a new address to vaultAddress variable
+   * @param _vaultAddress vault where allowed NFTs are to be used in this contract (Fingerprints DAO vault)
    */
   function setVaultAddress(address _vaultAddress)
     public
@@ -129,6 +183,10 @@ contract Traces is ERC721Enumerable, AccessControl {
     vaultAddress = _vaultAddress;
   }
 
+  /// @notice Returns the staked amount of current staked wnft
+  /// @dev It access wnftList to get the wnft data and returns stakedAmount
+  /// @param _tokenId wnft id created by this contract
+  /// @return staked amount
   function getStakedValue(uint256 _tokenId) public view returns (uint256) {
     return
       wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
@@ -136,6 +194,10 @@ contract Traces is ERC721Enumerable, AccessControl {
       ].stakedAmount;
   }
 
+  /// @notice Returns the WrappedToken
+  /// @dev It access wrappedIdToOgToken to get the original wnft info and gets the token from wnftList
+  /// @param _tokenId wnft id created by this contract
+  /// @return WrappedToken struct
   function getToken(uint256 _tokenId)
     public
     view
@@ -147,6 +209,13 @@ contract Traces is ERC721Enumerable, AccessControl {
       ];
   }
 
+  /// @notice Returns the current price on according to parameters sent
+  /// @dev It is used to calculate the price of a dutch auction
+  /// @param priceLimit the minimum price the wnft can have
+  /// @param lastTimestamp last time the wnft was outbidded
+  /// @param dutchMultiplier base to reach the max price of wnft when in dutch auction phase
+  /// @param duration the duration of dutch auction (in seconds)
+  /// @return uint256 current price to outbid the wnft
   function getCurrentPrice(
     uint256 priceLimit,
     uint256 lastTimestamp,
