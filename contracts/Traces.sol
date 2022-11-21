@@ -282,7 +282,6 @@ contract Traces is ERC721Enumerable, AccessControl {
     if (wnftList[_ogTokenAddress][_ogTokenId].ogTokenId == _ogTokenId) {
       revert DuplicatedToken(_ogTokenAddress, _ogTokenId);
     }
-
     // Create a collection if it doesn't exist
     // Set collection id, tokenCount and ogTokenAddress
     if (collection[_ogTokenAddress].id < 1) {
@@ -293,7 +292,9 @@ contract Traces is ERC721Enumerable, AccessControl {
       });
     }
 
-    uint256 newTokenId = collection[_ogTokenAddress].tokenCount++;
+    uint256 newTokenId = collection[_ogTokenAddress].id.add(
+      collection[_ogTokenAddress].tokenCount++
+    );
 
     wnftList[_ogTokenAddress][_ogTokenId] = WrappedToken({
       ogTokenAddress: _ogTokenAddress,

@@ -161,20 +161,13 @@ describe('Traces admin', function () {
     const [tokenAddress, tokenId, minStake] = tokenData
 
     await conn.addToken(...tokenData)
-    const { tokenCount } = await trace.collection(tokenAddress)
+    const { tokenCount, id } = await trace.collection(tokenAddress)
+    const WNFT = await conn.wnftList(tokenAddress, tokenId)
 
-    expect((await conn.wnftList(tokenAddress, tokenId)).ogTokenId).to.eq(
-      tokenId
-    )
-    expect((await conn.wnftList(tokenAddress, tokenId)).tokenId).to.eq(
-      tokenCount.sub(1)
-    )
-    expect(
-      (await conn.wnftList(tokenAddress, tokenId)).ogTokenAddress
-    ).to.match(new RegExp(tokenAddress, 'i'))
-    expect((await conn.wnftList(tokenAddress, tokenId)).firstStakePrice).to.eq(
-      minStake
-    )
+    expect(WNFT.ogTokenId).to.eq(tokenId)
+    expect(WNFT.tokenId).to.eq(id.add(tokenCount).sub(1))
+    expect(WNFT.ogTokenAddress).to.match(new RegExp(tokenAddress, 'i'))
+    expect(WNFT.firstStakePrice).to.eq(minStake)
   })
   it('returns TokenAdded event after calling addToken', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
@@ -196,14 +189,20 @@ describe('Traces admin', function () {
     const { events } = await tx.wait()
     //@ts-ignore
     const [_x, event] = events
-    const { tokenCount } = await trace.collection(tokenAddress)
+    const { tokenCount, id } = await trace.collection(tokenAddress)
 
     expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
-    expect(event?.args?.tokenId).to.eq(tokenCount.sub(1))
+    expect(event?.args?.tokenId).to.eq(id.add(tokenCount).sub(1))
     expect(tx)
       .to.emit(trace, 'TokenAdded')
-      .withArgs(tokenAddress, tokenId, tokenCount.sub(1), minStake, holdPeriod)
+      .withArgs(
+        tokenAddress,
+        tokenId,
+        id.add(tokenCount).sub(1),
+        minStake,
+        holdPeriod
+      )
   })
   it('returns error when trying to get an uri from a token that doesnt exists', async function () {
     const { trace } = await loadFixture(deployFixtureWith721)
@@ -229,7 +228,7 @@ describe('Traces admin', function () {
 
     await expect(trace.setBaseURI(newURI)).to.be.reverted
   })
-  it.only('returns right uri after calling setBaseURI', async function () {
+  it('returns right uri after calling setBaseURI', async function () {
     const { trace, owner, tokenData, baseURI } = await loadFixture(
       deployFixtureWith721
     )
@@ -265,10 +264,85 @@ describe('Traces admin', function () {
       multiplier,
       duration
     )
-    const { tokenCount } = await trace.collection(tokenAddress)
+    const { tokenCount, id } = await trace.collection(tokenAddress)
 
     expect(await trace.balanceOf(trace.address)).to.eq(1)
-    expect(await trace.ownerOf(tokenCount.sub(1))).to.eq(trace.address)
+    expect(await trace.ownerOf(id.add(tokenCount).sub(1))).to.eq(trace.address)
+  })
+  it('adds another collection when adding nft from other collection', async function () {
+    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+      await loadFixture(deployFixtureWith721)
+    const conn = trace.connect(owner)
+
+    const ERC721Mock2 = await ethers.getContractFactory('ERC721Mock')
+    const erc721mock2 = await ERC721Mock2.deploy(
+      owner.address,
+      'nft2',
+      'nft2',
+      minter1.address
+    )
+
+    const tokenId = 2
+    const tokenData2 = generateTokenData({
+      tokenAddress: erc721mock2.address,
+      tokenId,
+    })
+
+    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
+    await erc721mock2.connect(minter1).mint(FPVaultAddress, tokenId)
+
+    await conn.addToken(...tokenData)
+    await conn.addToken(...tokenData2)
+
+    const collection = await trace.collection(tokenData[0])
+    const collection2 = await trace.collection(tokenData2[0])
+
+    expect(await trace.balanceOf(trace.address)).to.eq(2)
+    expect(
+      await trace.ownerOf(collection.id.add(collection.tokenCount).sub(1))
+    ).to.eq(trace.address)
+    expect(
+      await trace.ownerOf(collection2.id.add(collection2.tokenCount).sub(1))
+    ).to.eq(trace.address)
+    expect(collection.id).to.eq(1_000_000)
+    expect(collection2.id).to.eq(2_000_000)
+  })
+  it('adds 2 of the same collection and get correct ids', async function () {
+    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+      await loadFixture(deployFixtureWith721)
+    const conn = trace.connect(owner)
+
+    const tokenId = 2
+    const tokenId2 = 3
+    const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
+      tokenData
+
+    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
+    await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId2)
+
+    await conn.addToken(
+      tokenAddress,
+      tokenId,
+      minStake,
+      holdPeriod,
+      multiplier,
+      duration
+    )
+    await conn.addToken(
+      tokenAddress,
+      tokenId2,
+      minStake,
+      holdPeriod,
+      multiplier,
+      duration
+    )
+
+    const collection = await trace.collection(tokenData[0])
+
+    expect(await trace.balanceOf(trace.address)).to.eq(2)
+    expect(await trace.ownerOf(1_000_000)).to.eq(trace.address)
+    expect(await trace.ownerOf(1_000_001)).to.eq(trace.address)
+    expect(collection.id).to.eq(1_000_000)
   })
   it('returns error if token is already added', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
