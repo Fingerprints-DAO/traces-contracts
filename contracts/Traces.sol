@@ -39,6 +39,9 @@ contract Traces is ERC721Enumerable, AccessControl {
   bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
 
+  /// @notice Stores the url to WNFT metadata
+  string public baseURI;
+
   /// @notice Stores the Fingerprints DAO vault address
   /// @dev It's used to check the ownership of the DAO when adding a original NFT to be wrapped and used by members
   /// @return A wallet address
@@ -123,12 +126,14 @@ contract Traces is ERC721Enumerable, AccessControl {
   constructor(
     address _adminAddress,
     address _vaultAddress,
-    address _tokenAddress
+    address _tokenAddress,
+    string memory _url
   ) ERC721('Fingerprints Traces', 'FPTR') {
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
     _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
     customTokenAddress = _tokenAddress;
+    baseURI = _url;
   }
 
   /**
@@ -409,6 +414,10 @@ contract Traces is ERC721Enumerable, AccessControl {
     // Delete OgToken from wrappedIdToOgToken[tokenId]
     delete wrappedIdToOgToken[_id];
     _burn(_id);
+  }
+
+  function _baseURI() internal view virtual override returns (string memory) {
+    return baseURI;
   }
 
   function supportsInterface(bytes4 interfaceId)

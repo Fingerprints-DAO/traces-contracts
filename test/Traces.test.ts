@@ -22,6 +22,7 @@ describe('Traces basic', function () {
     // Contracts are deployed using the first signer/account by default
     const [deployer, owner] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
+    const baseURI = `${faker.internet.url()}/`
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
     const erc20mock = await ERC20Mock.deploy(
@@ -35,7 +36,8 @@ describe('Traces basic', function () {
     const trace = await Traces.deploy(
       owner.address,
       FPVaultAddress,
-      erc20mock.address
+      erc20mock.address,
+      baseURI
     )
 
     return { trace, deployer, owner, FPVaultAddress }
@@ -95,6 +97,7 @@ describe('Traces admin', function () {
     // Contracts are deployed using the first signer/account by default
     const [deployer, owner, minter1] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
+    const baseURI = `${faker.internet.url()}/`
 
     const ERC20Mock = await ethers.getContractFactory('ERC20Mock')
     const erc20mock = await ERC20Mock.deploy(
@@ -108,7 +111,8 @@ describe('Traces admin', function () {
     const trace = await Traces.deploy(
       owner.address,
       FPVaultAddress,
-      erc20mock.address
+      erc20mock.address,
+      baseURI
     )
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
@@ -131,6 +135,7 @@ describe('Traces admin', function () {
       erc721mock,
       minter1,
       tokenData,
+      baseURI,
     }
   }
 
@@ -199,6 +204,24 @@ describe('Traces admin', function () {
     expect(tx)
       .to.emit(trace, 'TokenAdded')
       .withArgs(tokenAddress, tokenId, tokenCount.sub(1), minStake, holdPeriod)
+  })
+  it('returns error when trying to get an uri from a token that doesnt exists', async function () {
+    const { trace } = await loadFixture(deployFixtureWith721)
+
+    await expect(trace.tokenURI(1000)).to.be.reverted
+  })
+  it('returns right uri when token exists', async function () {
+    const { trace, owner, tokenData, baseURI } = await loadFixture(
+      deployFixtureWith721
+    )
+    const conn = trace.connect(owner)
+    const [contractAddress, nftId] = tokenData
+
+    await expect(conn.addToken(...tokenData))
+    const WNFT = await trace.wnftList(contractAddress, nftId)
+
+    const tokenURI = await trace.tokenURI(WNFT.tokenId)
+    expect(tokenURI).to.eql(`${baseURI}${WNFT.tokenId.toString()}`)
   })
   it('mints the wnft to the contract after adding the data', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
@@ -288,6 +311,7 @@ describe('Traces functionality', function () {
       await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
     const amount = 1_000_000
+    const baseURI = `${faker.internet.url()}/`
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
     const erc721mock = await ERC721Mock.deploy(
@@ -309,7 +333,8 @@ describe('Traces functionality', function () {
     const traces = await Traces.deploy(
       owner.address,
       FPVaultAddress,
-      erc20mock.address
+      erc20mock.address,
+      baseURI
     )
 
     const tokenData = generateTokenData({

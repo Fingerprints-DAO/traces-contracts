@@ -34,6 +34,7 @@ task('deploy-local', 'Deploy contracts to hardhat').setAction(
           deployer.address,
           DAOVault.address,
           () => contracts.ERC20Mock.instance?.address,
+          process.env.METADATA_URL ?? '',
         ],
       },
     }
