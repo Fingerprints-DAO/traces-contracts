@@ -217,11 +217,34 @@ describe('Traces admin', function () {
     const conn = trace.connect(owner)
     const [contractAddress, nftId] = tokenData
 
-    await expect(conn.addToken(...tokenData))
+    await conn.addToken(...tokenData)
     const WNFT = await trace.wnftList(contractAddress, nftId)
 
     const tokenURI = await trace.tokenURI(WNFT.tokenId)
     expect(tokenURI).to.eql(`${baseURI}${WNFT.tokenId.toString()}`)
+  })
+  it('returns error when trying to set an uri without admin role', async function () {
+    const { trace } = await loadFixture(deployFixtureWith721)
+    const newURI = `${faker.internet.url()}/`
+
+    await expect(trace.setBaseURI(newURI)).to.be.reverted
+  })
+  it.only('returns right uri after calling setBaseURI', async function () {
+    const { trace, owner, tokenData, baseURI } = await loadFixture(
+      deployFixtureWith721
+    )
+    const conn = trace.connect(owner)
+    const [contractAddress, nftId] = tokenData
+    const newURI = `${faker.internet.url()}/`
+
+    await conn.addToken(...tokenData)
+    await conn.setBaseURI(newURI)
+
+    const WNFT = await trace.wnftList(contractAddress, nftId)
+
+    expect(await trace.tokenURI(WNFT.tokenId)).to.eql(
+      `${newURI}${WNFT.tokenId.toString()}`
+    )
   })
   it('mints the wnft to the contract after adding the data', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =

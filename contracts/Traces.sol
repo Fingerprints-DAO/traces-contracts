@@ -416,6 +416,13 @@ contract Traces is ERC721Enumerable, AccessControl {
     _burn(_id);
   }
 
+  function setBaseURI(string memory _newBaseURI)
+    public
+    onlyRole(DEFAULT_ADMIN_ROLE)
+  {
+    baseURI = _newBaseURI;
+  }
+
   function _baseURI() internal view virtual override returns (string memory) {
     return baseURI;
   }
