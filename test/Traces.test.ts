@@ -396,6 +396,18 @@ describe('Traces admin', function () {
       )
     ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
   })
+  it('returns error when calling addToken without an erc721 contract address', async function () {
+    const { erc721mock, minter1, owner, trace } = await loadFixture(
+      deployFixtureWith721
+    )
+    const data = generateTokenData()
+
+    await erc721mock.connect(minter1).mint(minter1.address, data[1])
+
+    await expect(
+      trace.connect(owner).addToken(...data)
+    ).to.revertedWithCustomError(trace, ERROR.INVALID_721_CONTRACT)
+  })
 })
 
 describe('Traces functionality', function () {
@@ -486,6 +498,20 @@ describe('Traces functionality', function () {
         const [contractAddress, nftId] = tokenData
 
         await traces.connect(owner).addToken(...tokenData)
+
+        await expect(
+          traces
+            .connect(staker1)
+            .outbid(contractAddress, nftId, ethers.utils.parseUnits('100', 18))
+        ).to.revertedWithCustomError(traces, ERROR.TRANSFER_NOT_ALLOWED)
+      })
+      it('user executed allowance lower than needed to stake', async function () {
+        const { traces, owner, tokenData, staker1, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount] = tokenData
+
+        await traces.connect(owner).addToken(...tokenData)
+        await erc20mock.connect(staker1).approve(traces.address, amount.sub(1))
 
         await expect(
           traces
@@ -705,6 +731,31 @@ describe('Traces functionality', function () {
         expect(await traces.balanceOf(staker1.address)).to.eq(0)
         expect(await traces.balanceOf(staker2.address)).to.eq(1)
         expect(await traces.ownerOf(wNFT.tokenId)).to.eq(staker2.address)
+      })
+      it('checks staked amount of a wnft after an outbid', async function () {
+        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        let latestBlockTimestamp = await time.latest()
+
+        await traces.connect(owner).addToken(...tokenData)
+
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        latestBlockTimestamp = await time.latest()
+        await time.increaseTo(
+          dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
+        )
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
+
+        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
+        await traces
+          .connect(staker2)
+          .outbid(contractAddress, nftId, currentPrice)
+
+        expect(await traces.getStakedValue(wNFT.tokenId)).to.eq(currentPrice)
       })
       it('transfers the erc20 custom token back to the user when the same is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
