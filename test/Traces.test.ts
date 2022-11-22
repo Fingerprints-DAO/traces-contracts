@@ -20,7 +20,7 @@ describe('Traces basic', function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deployFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [deployer, owner] = await ethers.getSigners()
+    const [deployer, owner, staker1] = await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
     const baseURI = `${faker.internet.url()}/`
 
@@ -40,7 +40,7 @@ describe('Traces basic', function () {
       baseURI
     )
 
-    return { trace, deployer, owner, FPVaultAddress }
+    return { trace, deployer, owner, FPVaultAddress, staker1 }
   }
 
   describe('Deployment', function () {
@@ -85,6 +85,26 @@ describe('Traces basic', function () {
       expect(await trace.vaultAddress()).to.match(
         new RegExp(newVaultAddress, 'i')
       )
+    })
+    it('allows admin to pause the contract', async () => {
+      const { trace, owner } = await loadFixture(deployFixture)
+
+      await trace.connect(owner).pause()
+      expect(await trace.paused()).to.be.equal(true)
+    })
+    it('allows admin to unpause the contract', async () => {
+      const { trace, owner } = await loadFixture(deployFixture)
+
+      await trace.connect(owner).pause()
+      await trace.connect(owner).unpause()
+      expect(await trace.paused()).to.be.equal(false)
+    })
+    it('doesnt allow editor to pause the contract', async () => {
+      const { trace, owner, staker1 } = await loadFixture(deployFixture)
+
+      const EDITOR_ROLE = await trace.connect(owner).EDITOR_ROLE()
+      await trace.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
+      await expect(trace.connect(staker1).pause()).to.be.reverted
     })
   })
 })

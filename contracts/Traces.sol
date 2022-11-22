@@ -9,6 +9,7 @@ import '@openzeppelin/contracts/access/AccessControl.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
+import '@openzeppelin/contracts/security/Pausable.sol';
 
 // Uncomment this line to use console.log
 // import 'hardhat/console.sol';
@@ -34,7 +35,7 @@ error NoPermission(uint256 tokenId, address owner);
 /// Only NFTs from an ERC721 contracts are allowed to be used here
 /// @dev This contract is extended of erc721 and mint NFTs based in the original NFT added by these contract functions.
 /// There are only 2 Roles: Admin and Editor.
-contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
+contract Traces is ERC721Enumerable, Pausable, AccessControl, ReentrancyGuard {
   using ERC165Checker for address;
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -290,6 +291,7 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
   )
     external
     nonReentrant
+    whenNotPaused
     onlyRole(EDITOR_ROLE)
     _isERC721Contract(_ogTokenAddress)
   {
@@ -360,7 +362,7 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
     address _ogTokenAddress,
     uint256 _ogTokenId,
     uint256 _amount
-  ) external nonReentrant {
+  ) external whenNotPaused nonReentrant {
     // gets wnft data
     WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
 
@@ -409,7 +411,7 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
    * Only current owner and Editor can unstake the wnft
    * @param _tokenId token id to unstake
    */
-  function unstake(uint256 _tokenId) external nonReentrant {
+  function unstake(uint256 _tokenId) external whenNotPaused nonReentrant {
     address _owner = this.ownerOf(_tokenId);
     // throws error if it is not the owner or EDITOR calling this
     if (msg.sender != _owner && !hasRole(EDITOR_ROLE, msg.sender))
@@ -443,7 +445,11 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
    * It removes the token from mapping and burn the nft
    * @param _tokenId token id to unstake
    */
-  function deleteToken(uint256 _tokenId) external onlyRole(EDITOR_ROLE) {
+  function deleteToken(uint256 _tokenId)
+    external
+    whenNotPaused
+    onlyRole(EDITOR_ROLE)
+  {
     if (ownerOf(_tokenId) != address(this))
       revert NoPermission(_tokenId, ownerOf(_tokenId));
 
@@ -477,6 +483,22 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
   /// @return a string with actual value of baseURI
   function _baseURI() internal view virtual override returns (string memory) {
     return baseURI;
+  }
+
+  /**
+   * @notice Pause this contract
+   * @dev This function can only be called by the admin
+   */
+  function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    _pause();
+  }
+
+  /**
+   * @notice Unpause this contract
+   * @dev This function can only be called by the admin
+   */
+  function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    _unpause();
   }
 
   function supportsInterface(bytes4 interfaceId)
