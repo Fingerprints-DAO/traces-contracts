@@ -7,9 +7,11 @@ import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/access/AccessControl.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
+import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
+import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 
 // Uncomment this line to use console.log
-import 'hardhat/console.sol';
+// import 'hardhat/console.sol';
 
 error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
 error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
@@ -32,9 +34,10 @@ error NoPermission(uint256 tokenId, address owner);
 /// Only NFTs from an ERC721 contracts are allowed to be used here
 /// @dev This contract is extended of erc721 and mint NFTs based in the original NFT added by these contract functions.
 /// There are only 2 Roles: Admin and Editor.
-contract Traces is ERC721Enumerable, AccessControl {
+contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
   using ERC165Checker for address;
   using SafeMath for uint256;
+  using SafeERC20 for IERC20;
 
   bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
@@ -50,7 +53,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   /// @notice Stores custom token details as ERC20 smart contract address and decimals used on this token
   /// @dev Current it stores the $prints details. The current token from Fingerprints DAO. It's not possible to get decimals from erc20 contract, that is why we need it set manually.
   /// @return A smart contract address and decimals from this smart contract
-  address public customTokenAddress;
+  IERC20 public customTokenAddress;
   uint256 public customTokenDecimals = 10**18;
 
   /// @notice Stores a list of wrapped token(NFT) created and minted
@@ -126,7 +129,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   constructor(
     address _adminAddress,
     address _vaultAddress,
-    address _tokenAddress,
+    IERC20 _tokenAddress,
     string memory _url
   ) ERC721('Fingerprints Traces', 'FPTR') {
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
@@ -167,7 +170,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   /// @param _amount amount sent to stake and outbid the wnft
   /// @param _minStake minumum required to stake and outbid the wnft
   function hasEnoughToStake(uint256 _amount, uint256 _minStake) public view {
-    uint256 allowedToTransfer = IERC20(customTokenAddress).allowance(
+    uint256 allowedToTransfer = customTokenAddress.allowance(
       msg.sender,
       address(this)
     );
@@ -182,7 +185,7 @@ contract Traces is ERC721Enumerable, AccessControl {
    * @param _vaultAddress vault where allowed NFTs are to be used in this contract (Fingerprints DAO vault)
    */
   function setVaultAddress(address _vaultAddress)
-    public
+    external
     onlyRole(DEFAULT_ADMIN_ROLE)
   {
     vaultAddress = _vaultAddress;
@@ -192,7 +195,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   /// @dev It access wnftList to get the wnft data and returns stakedAmount
   /// @param _tokenId wnft id created by this contract
   /// @return staked amount
-  function getStakedValue(uint256 _tokenId) public view returns (uint256) {
+  function getStakedValue(uint256 _tokenId) external view returns (uint256) {
     return
       wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
         wrappedIdToOgToken[_tokenId].id
@@ -284,7 +287,12 @@ contract Traces is ERC721Enumerable, AccessControl {
     uint256 _minHoldPeriod,
     uint256 _dutchMultiplier,
     uint256 _dutchAuctionDuration
-  ) public onlyRole(EDITOR_ROLE) _isERC721Contract(_ogTokenAddress) {
+  )
+    external
+    nonReentrant
+    onlyRole(EDITOR_ROLE)
+    _isERC721Contract(_ogTokenAddress)
+  {
     // throws error if original nft contract is not an erc721
     if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
@@ -352,7 +360,7 @@ contract Traces is ERC721Enumerable, AccessControl {
     address _ogTokenAddress,
     uint256 _ogTokenId,
     uint256 _amount
-  ) public {
+  ) external {
     // gets wnft data
     WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
 
@@ -383,11 +391,11 @@ contract Traces is ERC721Enumerable, AccessControl {
     // transfer wnft from current owner to the outbidder
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
     // transfer erc20 custom token from outbidder to this contract
-    IERC20(customTokenAddress).transferFrom(msg.sender, address(this), _amount);
+    customTokenAddress.safeTransferFrom(msg.sender, address(this), _amount);
     // allowance to transfer erc20 staked token back to previous oubidder
-    IERC20(customTokenAddress).approve(address(this), token.stakedAmount);
+    customTokenAddress.safeApprove(address(this), token.stakedAmount);
     // transfer the staked amount to previous outbidder
-    IERC20(customTokenAddress).transferFrom(
+    customTokenAddress.safeTransferFrom(
       address(this),
       _owner,
       token.stakedAmount
@@ -401,7 +409,7 @@ contract Traces is ERC721Enumerable, AccessControl {
    * Only current owner and Editor can unstake the wnft
    * @param _tokenId token id to unstake
    */
-  function unstake(uint256 _tokenId) public {
+  function unstake(uint256 _tokenId) external nonReentrant {
     address _owner = this.ownerOf(_tokenId);
     // throws error if it is not the owner or EDITOR calling this
     if (msg.sender != _owner && !hasRole(EDITOR_ROLE, msg.sender))
@@ -418,11 +426,11 @@ contract Traces is ERC721Enumerable, AccessControl {
       wrappedIdToOgToken[_tokenId].id
     ].lastOutbidTimestamp = 0;
     // allowance to transfer erc20 tokens from this contract
-    IERC20(customTokenAddress).approve(address(this), token.stakedAmount);
+    customTokenAddress.safeApprove(address(this), token.stakedAmount);
     // transfer outbidder wnft back to this contract
     _safeTransfer(_owner, address(this), _tokenId, '');
     // transfer erc20 custom token from this contract back to the user
-    IERC20(customTokenAddress).transferFrom(
+    customTokenAddress.safeTransferFrom(
       address(this),
       _owner,
       token.stakedAmount
@@ -435,7 +443,7 @@ contract Traces is ERC721Enumerable, AccessControl {
    * It removes the token from mapping and burn the nft
    * @param _tokenId token id to unstake
    */
-  function deleteToken(uint256 _tokenId) public onlyRole(EDITOR_ROLE) {
+  function deleteToken(uint256 _tokenId) external onlyRole(EDITOR_ROLE) {
     if (ownerOf(_tokenId) != address(this))
       revert NoPermission(_tokenId, ownerOf(_tokenId));
 
@@ -459,7 +467,7 @@ contract Traces is ERC721Enumerable, AccessControl {
   /// @dev Only admin can call this
   /// @param _newBaseURI the new url where metadata is stored. (need to include slash "/" at the end)
   function setBaseURI(string memory _newBaseURI)
-    public
+    external
     onlyRole(DEFAULT_ADMIN_ROLE)
   {
     baseURI = _newBaseURI;
