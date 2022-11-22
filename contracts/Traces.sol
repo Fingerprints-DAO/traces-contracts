@@ -489,7 +489,7 @@ contract Traces is ERC721Enumerable, Pausable, AccessControl, ReentrancyGuard {
    * @notice Pause this contract
    * @dev This function can only be called by the admin
    */
-  function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+  function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _pause();
   }
 
@@ -497,7 +497,7 @@ contract Traces is ERC721Enumerable, Pausable, AccessControl, ReentrancyGuard {
    * @notice Unpause this contract
    * @dev This function can only be called by the admin
    */
-  function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+  function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _unpause();
   }
 
