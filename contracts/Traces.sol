@@ -360,7 +360,7 @@ contract Traces is ERC721Enumerable, AccessControl, ReentrancyGuard {
     address _ogTokenAddress,
     uint256 _ogTokenId,
     uint256 _amount
-  ) external {
+  ) external nonReentrant {
     // gets wnft data
     WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
 
