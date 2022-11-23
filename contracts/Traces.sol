@@ -35,7 +35,13 @@ error NoPermission(uint256 tokenId, address owner);
 /// Only NFTs from an ERC721 contracts are allowed to be used here
 /// @dev This contract is extended of erc721 and mint NFTs based in the original NFT added by these contract functions.
 /// There are only 2 Roles: Admin and Editor.
-contract Traces is ERC721Enumerable, Pausable, AccessControl, ReentrancyGuard {
+contract Traces is
+  ERC721Enumerable,
+  Pausable,
+  AccessControl,
+  ReentrancyGuard,
+  IERC721Receiver
+{
   using ERC165Checker for address;
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -467,6 +473,22 @@ contract Traces is ERC721Enumerable, Pausable, AccessControl, ReentrancyGuard {
     // Deletes OgToken from wrappedIdToOgToken[tokenId]
     delete wrappedIdToOgToken[_tokenId];
     _burn(_tokenId);
+  }
+
+  /// @notice Change erc20 tokens settings
+  /// @dev Only admin can call this
+  /// @param _customTokenAddress the new erc20 contract adress
+  /// @param _customTokenDecimals the decimals base used on erc20 contract address
+  function setERC20Token(
+    IERC20 _customTokenAddress,
+    uint256 _customTokenDecimals
+  ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(
+      address(_customTokenAddress) != address(0) && _customTokenDecimals > 10,
+      'Invalid address or decimals'
+    );
+    customTokenAddress = _customTokenAddress;
+    customTokenDecimals = _customTokenDecimals;
   }
 
   /// @notice Change the base uri (path of stored metadata)

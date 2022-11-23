@@ -8,4 +8,5 @@ export enum ERROR {
   INVALID_TOKEN_ID = 'InvalidTokenId',
   HOLD_PERIOD = 'HoldPeriod',
   NO_PERMISSION = 'NoPermission',
+  INVALID_ERC20_ARGS = 'Invalid address or decimals',
 }

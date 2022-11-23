@@ -10,6 +10,7 @@ dayjs.extend(duration)
 import { ERROR } from './errors'
 import { generateTokenData } from './token'
 import { formatUnits, parseUnits } from 'ethers/lib/utils'
+import { BigNumber } from 'ethers'
 
 const getAccessControlError = (address: string, role: string) =>
   `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
@@ -105,6 +106,39 @@ describe('Traces basic', function () {
       const EDITOR_ROLE = await trace.connect(owner).EDITOR_ROLE()
       await trace.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
       await expect(trace.connect(staker1).pause()).to.be.reverted
+    })
+    it('doesnt allow editor to change erc20 settings', async () => {
+      const { trace, owner, staker1 } = await loadFixture(deployFixture)
+
+      const EDITOR_ROLE = await trace.connect(owner).EDITOR_ROLE()
+      await trace.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
+      await expect(
+        trace
+          .connect(staker1)
+          .setERC20Token(faker.finance.ethereumAddress(), 10)
+      ).to.be.reverted
+    })
+    it('throws error if send an invalid address or 0 on setERC20Token()', async () => {
+      const { trace, owner } = await loadFixture(deployFixture)
+
+      await expect(
+        trace
+          .connect(owner)
+          .setERC20Token('0x0000000000000000000000000000000000000000', 10)
+      ).to.be.revertedWith(ERROR.INVALID_ERC20_ARGS)
+      await expect(
+        trace.connect(owner).setERC20Token(faker.finance.ethereumAddress(), 1)
+      ).to.be.revertedWith(ERROR.INVALID_ERC20_ARGS)
+    })
+    it('changes correctly the erc20 settings when calling setERC20Token() by owner', async () => {
+      const { trace, owner } = await loadFixture(deployFixture)
+      const address = faker.finance.ethereumAddress()
+      const decimals = BigNumber.from(10).pow(18)
+
+      await trace.connect(owner).setERC20Token(address, decimals)
+
+      expect((await trace.customTokenAddress()).toLowerCase()).to.be.eq(address)
+      expect(await trace.customTokenDecimals()).to.be.eq(decimals)
     })
   })
 })
