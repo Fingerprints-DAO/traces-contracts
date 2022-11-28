@@ -242,7 +242,7 @@ describe('Traces admin', function () {
     )
     const { events } = await tx.wait()
     //@ts-ignore
-    const [_x, event] = events
+    const [_x, , event] = events
     const { tokenCount, id } = await trace.collection(tokenAddress)
 
     expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
@@ -1080,6 +1080,31 @@ describe('Traces functionality', function () {
 
       expect(await traces.balanceOf(traces.address)).to.eq(
         oldContractBalance.sub(1)
+      )
+    })
+    it('deletes a wnft and add another one with the same id successfuly', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, owner, tokenData, erc721mock, FPVaultAddress } = fixture
+      const [contractAddress, nftId] = tokenData
+
+      await traces.connect(owner).addToken(...tokenData)
+      const { tokenId } = await traces.wnftList(contractAddress, nftId)
+      await traces.connect(owner).deleteToken(tokenId)
+
+      const tokenData2 = generateTokenData({
+        tokenAddress: erc721mock.address,
+      })
+      await erc721mock.connect(owner).mint(FPVaultAddress, tokenData2[1]),
+        await traces.connect(owner).addToken(...tokenData)
+      const { tokenId: tokenId2 } = await traces.wnftList(
+        contractAddress,
+        nftId
+      )
+
+      expect(tokenId2).eql(tokenId)
+      expect((await traces.balanceOf(traces.address)).toNumber()).to.eq(1)
+      expect((await traces.getToken(tokenId2)).ogTokenId.toNumber()).to.eq(
+        nftId
       )
     })
   })

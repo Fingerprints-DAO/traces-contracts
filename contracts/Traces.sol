@@ -128,6 +128,24 @@ contract Traces is
     uint256
   );
 
+  /// @notice When deleting a token, call this event
+  /// @param ogTokenAddress original erc721 contract address
+  /// @param ogTokenId original erc721 NFT ID
+  /// @param tokenId wnft id created in this contract
+  event TokenDeleted(
+    address indexed ogTokenAddress,
+    uint256 indexed ogTokenId,
+    uint256 indexed tokenId
+  );
+
+  /// @notice When adding a token and the collection wasnt created yet, call this event
+  /// @param collectionId created collection id
+  /// @param ogTokenAddress original erc721 contract address
+  event CollectionAdded(
+    uint256 indexed collectionId,
+    address indexed ogTokenAddress
+  );
+
   /// @notice Starts the contract and name it as Fingerpints Traces with FPTR symbol
   /// @dev Sets the basic needed to run this contract
   /// @param _adminAddress the user to be add the ADMIN and EDITOR roles
@@ -317,6 +335,8 @@ contract Traces is
         tokenCount: 0,
         ogTokenAddress: _ogTokenAddress
       });
+      // emit CollectionAdded event when storing it on collection mapping
+      emit CollectionAdded(collection[_ogTokenAddress].id, _ogTokenAddress);
     }
 
     // create the wnft id - sum of collection.id, collection.count and 1
@@ -458,6 +478,13 @@ contract Traces is
   {
     if (ownerOf(_tokenId) != address(this))
       revert NoPermission(_tokenId, ownerOf(_tokenId));
+
+    // emits delete event before removing data from mappings
+    emit TokenDeleted(
+      wrappedIdToOgToken[_tokenId].tokenAddress, // ogTokenAddress
+      wrappedIdToOgToken[_tokenId].id, // ogTokenId
+      _tokenId // tokenId
+    );
 
     // Deletes WrappedToken from wnftList[tokenAddress][tokenId]
     delete wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
