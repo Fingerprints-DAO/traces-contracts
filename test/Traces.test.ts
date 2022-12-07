@@ -786,6 +786,38 @@ describe('Traces functionality', function () {
         expect(await traces.balanceOf(staker2.address)).to.eq(1)
         expect(await traces.ownerOf(wNFT.tokenId)).to.eq(staker2.address)
       })
+      // test outbid event is emitted
+      it('emits an outbid event', async function () {
+        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
+          await loadFixture(deployFixture)
+        const [contractAddress, nftId, amount, holdPeriod] = tokenData
+        let latestBlockTimestamp = await time.latest()
+        await traces.connect(owner).addToken(...tokenData)
+
+        await erc20mock.connect(staker1).approve(traces.address, amount)
+        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+
+        latestBlockTimestamp = await time.latest()
+        await time.increaseTo(
+          dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
+        )
+        const wNFT = await traces.wnftList(contractAddress, nftId)
+        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
+
+        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
+        await expect(
+          traces.connect(staker2).outbid(contractAddress, nftId, currentPrice)
+        )
+          .to.emit(traces, 'Outbid')
+          .withArgs(
+            contractAddress,
+            nftId,
+            wNFT.tokenId,
+            amount,
+            currentPrice,
+            staker2.address
+          )
+      })
       it('checks staked amount of a wnft after an outbid', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)

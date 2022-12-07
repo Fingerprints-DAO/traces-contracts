@@ -146,6 +146,16 @@ contract Traces is
     address indexed ogTokenAddress
   );
 
+  // create outbid event with important data
+  event Outbid(
+    address ogTokenAddress,
+    uint256 ogTokenId,
+    uint256 indexed tokenId,
+    uint256 amount,
+    uint256 price,
+    address indexed owner
+  );
+
   /// @notice Starts the contract and name it as Fingerpints Traces with FPTR symbol
   /// @dev Sets the basic needed to run this contract
   /// @param _adminAddress the user to be add the ADMIN and EDITOR roles
@@ -427,6 +437,16 @@ contract Traces is
       address(this),
       _owner,
       token.stakedAmount
+    );
+
+    // emits an event when outbid happens with important data
+    emit Outbid(
+      _ogTokenAddress,
+      _ogTokenId,
+      token.tokenId,
+      token.stakedAmount,
+      _amount,
+      msg.sender
     );
   }
 
