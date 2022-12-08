@@ -4,6 +4,7 @@ import '@nomicfoundation/hardhat-toolbox'
 import 'hardhat-watcher'
 import 'hardhat-contract-sizer'
 import 'hardhat-docgen'
+import 'hardhat-gas-reporter'
 import 'dotenv/config'
 import './tasks'
 
@@ -40,16 +41,14 @@ const config: HardhatUserConfig = {
   },
 
   networks: {
-    hardhat: {
-      initialBaseFeePerGas: 0,
-    },
+    // hardhat: {
+    //   initialBaseFeePerGas: 0,
+    // },
     goerli: {
       url: `https://goerli.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts,
+      accounts: [process.env.PRIVATE_KEY ?? ''],
+      // accounts,
       chainId: 5,
-      // @ts-ignore
-      live: true,
-      saveDeployments: true,
     },
   },
   gasReporter: {
