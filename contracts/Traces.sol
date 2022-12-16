@@ -12,7 +12,7 @@ import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/security/Pausable.sol';
 
 // Uncomment this line to use console.log
-// import 'hardhat/console.sol';
+import 'hardhat/console.sol';
 
 error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
 error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
@@ -124,8 +124,8 @@ contract Traces is
     address indexed ogTokenAddress,
     uint256 indexed ogTokenId,
     uint256 indexed tokenId,
-    uint256,
-    uint256
+    uint256 price,
+    uint256 minHoldPeriod
   );
 
   /// @notice When deleting a token, call this event
@@ -210,8 +210,9 @@ contract Traces is
       address(this)
     );
 
-    if (allowedToTransfer < _amount || allowedToTransfer < _minStake)
+    if (allowedToTransfer < _amount || allowedToTransfer < _minStake) {
       revert TransferNotAllowed(_amount);
+    }
   }
 
   /**
@@ -385,6 +386,8 @@ contract Traces is
       _firstStakePrice,
       _minHoldPeriod
     );
+    console.log(_ogTokenAddress, _ogTokenId, newTokenId);
+    console.log(_firstStakePrice, _minHoldPeriod);
   }
 
   /**
@@ -401,22 +404,26 @@ contract Traces is
   ) external whenNotPaused nonReentrant {
     // gets wnft data
     WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
-
+    console.log(token.ogTokenId, _ogTokenId);
     // throws error if this token doesn't exist
     if (token.ogTokenId != _ogTokenId)
       revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
+    console.log('After id checking');
     // get the current price of this wnft
     // Also, getWNFTPrice has isHoldPeriod validation
     uint256 price = getWNFTPrice(token.tokenId);
 
+    console.log('After price', price);
     // checks this contract allowance to outbid the wnft
     hasEnoughToStake(_amount, price);
 
+    console.log('After Enough to stake', _amount);
     // throws error if price is bigger than amount sent
     if (price > _amount) {
       revert InvalidAmount(_ogTokenAddress, _ogTokenId, price, _amount);
     }
+    console.log('After price > amount');
 
     // starts outbid process
 
@@ -426,6 +433,8 @@ contract Traces is
     wnftList[_ogTokenAddress][_ogTokenId].stakedAmount = _amount;
 
     address _owner = this.ownerOf(token.tokenId);
+
+    console.log('before transfering');
     // transfer wnft from current owner to the outbidder
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
     // transfer erc20 custom token from outbidder to this contract
@@ -438,6 +447,7 @@ contract Traces is
       _owner,
       token.stakedAmount
     );
+    console.log('before event');
 
     // emits an event when outbid happens with important data
     emit Outbid(

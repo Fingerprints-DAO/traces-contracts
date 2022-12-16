@@ -60,7 +60,7 @@ task(
     traces: contracts.Traces.address,
     ogTokenAddress: contracts.ERC721Mock.address,
     ogTokenId: 11,
-    minStake: 100,
+    minStake: 400,
     minHoldPeriod: 1000 * 60 * 10, // 10 minutes
   })
 
