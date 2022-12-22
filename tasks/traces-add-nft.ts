@@ -1,3 +1,4 @@
+import { formatUnits, parseUnits } from 'ethers/lib/utils'
 import { task, types } from 'hardhat/config'
 
 task('traces-add-nft', 'Add NFTs to traces')
@@ -35,7 +36,14 @@ task('traces-add-nft', 'Add NFTs to traces')
       // connect deployer account and call addToken
       await nftContract
         .connect(deployer)
-        .addToken(ogTokenAddress, ogTokenId, minStake, minHoldPeriod, 10, 180)
+        .addToken(
+          ogTokenAddress,
+          ogTokenId,
+          parseUnits(minStake.toString(), 18),
+          minHoldPeriod,
+          10,
+          180
+        )
 
       const {
         tokenId,
@@ -51,7 +59,7 @@ task('traces-add-nft', 'Add NFTs to traces')
         ogTokenId,
         tokenId: tokenId.toNumber(),
         collectionId: collectionId.toNumber(),
-        firstStakePrice: firstStakePrice.toNumber(),
+        firstStakePrice: formatUnits(firstStakePrice, 18),
         stakedAmount: stakedAmount.toNumber(),
         minHoldPeriod,
         lastOutbidTimestamp: lastOutbidTimestamp.toNumber(),
