@@ -62,14 +62,17 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
           args: [
             adminAddress,
             vaultAddress,
-            () => contracts.ERC20Mock?.instance?.address ?? printsAddress,
+            () =>
+              printsAddress
+                ? printsAddress
+                : contracts.ERC20Mock?.instance?.address,
             process.env.METADATA_URL ?? '',
           ],
         },
       }
 
       for (const [name, contract] of Object.entries(contracts)) {
-        if (!name || !contract) return
+        if (!name || !contract || (contract?.args?.length ?? 0) < 1) continue
 
         let gasPrice = await ethers.provider.getGasPrice()
         if (!autoDeploy) {
