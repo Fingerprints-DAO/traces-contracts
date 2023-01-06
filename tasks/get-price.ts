@@ -1,10 +1,11 @@
 import { task, types } from 'hardhat/config'
+import { contractAddresses } from '../logs/deploy.json'
 
 task('get-price', 'Get wnft price')
   .addOptionalParam(
     'traces',
     'The `Traces` contract address',
-    '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0',
+    contractAddresses.Traces,
     types.string
   )
   .addParam('wnftId', 'wnft it', undefined, types.string)

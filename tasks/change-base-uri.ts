@@ -1,10 +1,11 @@
 import { task, types } from 'hardhat/config'
+import { contractAddresses } from '../logs/deploy.json'
 
 task('change-base-uri', 'Set base URI')
   .addOptionalParam(
     'tracesAddress',
     'The `Traces` contract address',
-    '0x6DFFa2526803100Cc5fa8e8baBB6a9956496a360',
+    contractAddresses.Traces,
     types.string
   )
   .addParam('url', 'New base url', undefined, types.string)

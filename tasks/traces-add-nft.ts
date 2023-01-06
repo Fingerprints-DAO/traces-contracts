@@ -1,11 +1,12 @@
 import { formatUnits, parseUnits } from 'ethers/lib/utils'
 import { task, types } from 'hardhat/config'
+import { contractAddresses } from '../logs/deploy.json'
 
 task('traces-add-nft', 'Add NFTs to traces')
   .addOptionalParam(
     'traces',
     'The `Traces` contract address',
-    '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0',
+    contractAddresses.Traces,
     types.string
   )
   .addOptionalParam(
