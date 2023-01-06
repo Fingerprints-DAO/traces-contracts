@@ -11,8 +11,8 @@ import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/security/Pausable.sol';
 
-// Uncomment this line to use console.log
-import 'hardhat/console.sol';
+// Uncomment this line to u
+// import 'hardhat/console.sol';
 
 error DuplicatedToken(address ogTokenAddress, uint256 ogTokenId);
 error NotOwnerOfToken(address ogTokenAddress, uint256 ogTokenId, address vault);
@@ -112,7 +112,7 @@ contract Traces is
     // generated id by this contract when adding the first nft of a collection
     uint256 id;
     // number of WNFTs created in this contract of this collection
-    uint256 tokenCount;
+    uint256 totalMinted;
   }
 
   /// @notice When adding a token, call this event
@@ -339,11 +339,11 @@ contract Traces is
       revert DuplicatedToken(_ogTokenAddress, _ogTokenId);
     }
     // Create a collection if it doesn't exist
-    // Set collection id, tokenCount and ogTokenAddress
+    // Set collection id, totalMinted and ogTokenAddress
     if (collection[_ogTokenAddress].id < 1) {
       collection[_ogTokenAddress] = CollectionInfo({
         id: (collectionCounter++).mul(COLLECTION_MULTIPLIER),
-        tokenCount: 0,
+        totalMinted: 0,
         ogTokenAddress: _ogTokenAddress
       });
       // emit CollectionAdded event when storing it on collection mapping
@@ -351,9 +351,9 @@ contract Traces is
     }
 
     // create the wnft id - sum of collection.id, collection.count and 1
-    // also increment collection.tokenCount
+    // also increment collection.totalMinted
     uint256 newTokenId = collection[_ogTokenAddress].id.add(
-      collection[_ogTokenAddress].tokenCount++
+      collection[_ogTokenAddress].totalMinted++
     );
 
     // create WrappedToken struct to store
@@ -386,8 +386,6 @@ contract Traces is
       _firstStakePrice,
       _minHoldPeriod
     );
-    console.log(_ogTokenAddress, _ogTokenId, newTokenId);
-    console.log(_firstStakePrice, _minHoldPeriod);
   }
 
   /**
@@ -404,26 +402,21 @@ contract Traces is
   ) external whenNotPaused nonReentrant {
     // gets wnft data
     WrappedToken memory token = wnftList[_ogTokenAddress][_ogTokenId];
-    console.log(token.ogTokenId, _ogTokenId);
     // throws error if this token doesn't exist
     if (token.ogTokenId != _ogTokenId)
       revert InvalidTokenId(_ogTokenAddress, _ogTokenId);
 
-    console.log('After id checking');
     // get the current price of this wnft
     // Also, getWNFTPrice has isHoldPeriod validation
     uint256 price = getWNFTPrice(token.tokenId);
 
-    console.log('After price', price);
     // checks this contract allowance to outbid the wnft
     hasEnoughToStake(_amount, price);
 
-    console.log('After Enough to stake', _amount);
     // throws error if price is bigger than amount sent
     if (price > _amount) {
       revert InvalidAmount(_ogTokenAddress, _ogTokenId, price, _amount);
     }
-    console.log('After price > amount');
 
     // starts outbid process
 
@@ -434,7 +427,6 @@ contract Traces is
 
     address _owner = this.ownerOf(token.tokenId);
 
-    console.log('before transfering');
     // transfer wnft from current owner to the outbidder
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
     // transfer erc20 custom token from outbidder to this contract
@@ -447,7 +439,6 @@ contract Traces is
       _owner,
       token.stakedAmount
     );
-    console.log('before event');
 
     // emits an event when outbid happens with important data
     emit Outbid(
@@ -520,12 +511,6 @@ contract Traces is
     delete wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
       wrappedIdToOgToken[_tokenId].id
     ];
-
-    // Decreases tokenCount from CollectionInfo[tokenAddress]
-    collection[wrappedIdToOgToken[_tokenId].tokenAddress]
-      .tokenCount = collection[wrappedIdToOgToken[_tokenId].tokenAddress]
-      .tokenCount
-      .sub(1);
 
     // Deletes OgToken from wrappedIdToOgToken[tokenId]
     delete wrappedIdToOgToken[_tokenId];

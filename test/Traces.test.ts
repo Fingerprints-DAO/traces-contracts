@@ -215,11 +215,11 @@ describe('Traces admin', function () {
     const [tokenAddress, tokenId, minStake] = tokenData
 
     await conn.addToken(...tokenData)
-    const { tokenCount, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await trace.collection(tokenAddress)
     const WNFT = await conn.wnftList(tokenAddress, tokenId)
 
     expect(WNFT.ogTokenId).to.eq(tokenId)
-    expect(WNFT.tokenId).to.eq(id.add(tokenCount).sub(1))
+    expect(WNFT.tokenId).to.eq(id.add(totalMinted).sub(1))
     expect(WNFT.ogTokenAddress).to.match(new RegExp(tokenAddress, 'i'))
     expect(WNFT.firstStakePrice).to.eq(minStake)
   })
@@ -243,17 +243,17 @@ describe('Traces admin', function () {
     const { events } = await tx.wait()
     //@ts-ignore
     const [_x, , event] = events
-    const { tokenCount, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await trace.collection(tokenAddress)
 
     expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
-    expect(event?.args?.tokenId).to.eq(id.add(tokenCount).sub(1))
+    expect(event?.args?.tokenId).to.eq(id.add(totalMinted).sub(1))
     expect(tx)
       .to.emit(trace, 'TokenAdded')
       .withArgs(
         tokenAddress,
         tokenId,
-        id.add(tokenCount).sub(1),
+        id.add(totalMinted).sub(1),
         minStake,
         holdPeriod
       )
@@ -318,10 +318,10 @@ describe('Traces admin', function () {
       multiplier,
       duration
     )
-    const { tokenCount, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await trace.collection(tokenAddress)
 
     expect(await trace.balanceOf(trace.address)).to.eq(1)
-    expect(await trace.ownerOf(id.add(tokenCount).sub(1))).to.eq(trace.address)
+    expect(await trace.ownerOf(id.add(totalMinted).sub(1))).to.eq(trace.address)
   })
   it('adds another collection when adding nft from other collection', async function () {
     const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
@@ -353,10 +353,10 @@ describe('Traces admin', function () {
 
     expect(await trace.balanceOf(trace.address)).to.eq(2)
     expect(
-      await trace.ownerOf(collection.id.add(collection.tokenCount).sub(1))
+      await trace.ownerOf(collection.id.add(collection.totalMinted).sub(1))
     ).to.eq(trace.address)
     expect(
-      await trace.ownerOf(collection2.id.add(collection2.tokenCount).sub(1))
+      await trace.ownerOf(collection2.id.add(collection2.totalMinted).sub(1))
     ).to.eq(trace.address)
     expect(collection.id).to.eq(1_000_000)
     expect(collection2.id).to.eq(2_000_000)
@@ -426,6 +426,43 @@ describe('Traces admin', function () {
         duration
       )
     ).to.revertedWithCustomError(trace, ERROR.DUPLICATED_TOKEN)
+  })
+  it('returns success if delete older wnft and add a new one', async function () {
+    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+      await loadFixture(deployFixtureWith721)
+    const conn = trace.connect(owner)
+    const [tokenAddress, tokenId, minStake, holdPeriod, multiplier, duration] =
+      tokenData
+    const tokenData1 = generateTokenData({
+      tokenAddress,
+      tokenId: tokenId + 1,
+    })
+    const tokenData2 = generateTokenData({
+      tokenAddress,
+      tokenId: tokenId + 2,
+    })
+
+    await Promise.all([
+      erc721mock.connect(minter1).mint(FPVaultAddress, tokenData1[1]),
+      erc721mock.connect(minter1).mint(FPVaultAddress, tokenData2[1]),
+    ])
+    await Promise.all([
+      conn.addToken(...tokenData),
+      conn.addToken(...tokenData1),
+      conn.addToken(...tokenData2),
+    ])
+
+    const { tokenId: wnftTokenId } = await trace.wnftList(
+      tokenAddress,
+      tokenData1[1]
+    )
+    await conn.deleteToken(wnftTokenId)
+
+    await expect(conn.addToken(...tokenData1)).to.not.reverted
+
+    const { ogTokenId } = await trace.wnftList(tokenAddress, tokenData1[1])
+
+    expect(ogTokenId).to.eq(tokenData1[1])
   })
   it('returns error if FP vault is not owner of the sent token', async function () {
     const { erc721mock, minter1, owner, trace } = await loadFixture(
@@ -1085,18 +1122,18 @@ describe('Traces functionality', function () {
 
       expect((await traces.wrappedIdToOgToken(wNFT.tokenId)).id).to.eq(0)
     })
-    it('decreases collection.tokenCount', async function () {
+    it('does not decreases collection.totalMinted', async function () {
       const fixture = await loadFixture(deployFixture)
       const { traces, owner, tokenData } = fixture
       const [contractAddress, nftId] = tokenData
 
       await traces.connect(owner).addToken(...tokenData)
       const wNFT = await traces.wnftList(contractAddress, nftId)
-      const { tokenCount } = await traces.collection(wNFT.ogTokenAddress)
+      const { totalMinted } = await traces.collection(wNFT.ogTokenAddress)
       await traces.connect(owner).deleteToken(wNFT.tokenId)
 
-      expect((await traces.collection(wNFT.ogTokenAddress)).tokenCount).to.eq(
-        tokenCount.sub(1)
+      expect((await traces.collection(wNFT.ogTokenAddress)).totalMinted).to.eq(
+        totalMinted
       )
     })
     it('burns the wnft successfully when it is deleted', async function () {
@@ -1114,7 +1151,7 @@ describe('Traces functionality', function () {
         oldContractBalance.sub(1)
       )
     })
-    it('deletes a wnft and add another one with the same id successfuly', async function () {
+    it('deletes a wnft and add another with another id successfuly', async function () {
       const fixture = await loadFixture(deployFixture)
       const { traces, owner, tokenData, erc721mock, FPVaultAddress } = fixture
       const [contractAddress, nftId] = tokenData
@@ -1133,7 +1170,7 @@ describe('Traces functionality', function () {
         nftId
       )
 
-      expect(tokenId2).eql(tokenId)
+      expect(tokenId2).not.eql(tokenId)
       expect((await traces.balanceOf(traces.address)).toNumber()).to.eq(1)
       expect((await traces.getToken(tokenId2)).ogTokenId.toNumber()).to.eq(
         nftId
