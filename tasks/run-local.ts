@@ -35,30 +35,30 @@ task(
 
   await Promise.all([
     run('mint-nfts', {
-      erc721Mock: contracts.ERC721Mock.address,
+      erc721Mock: contracts.ERC721Mock.instance.address,
       mintTo: DAOVault.address,
       qty: 100,
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.address,
+      erc721Mock: contracts.ERC20Mock.instance.address,
       mintTo: deployer.address,
       qty: '100000',
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.address,
+      erc721Mock: contracts.ERC20Mock.instance.address,
       mintTo: bob.address,
       qty: '10000',
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.address,
+      erc721Mock: contracts.ERC20Mock.instance.address,
       mintTo: marcia.address,
       qty: '1000',
     }),
   ])
 
   await run('traces-add-nft', {
-    traces: contracts.Traces.address,
-    ogTokenAddress: contracts.ERC721Mock.address,
+    traces: contracts.Traces.instance.address,
+    ogTokenAddress: contracts.ERC721Mock.instance.address,
     ogTokenId: 11,
     minStake: 400,
     minHoldPeriod: 1000 * 60 * 10, // 10 minutes
