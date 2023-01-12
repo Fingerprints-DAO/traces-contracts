@@ -956,8 +956,9 @@ describe('Traces functionality', function () {
         const fixture = await loadFixture(deployFixture)
         const { traces } = fixture
         const latestBlockTimestamp = (await time.latest()) * 1000
-        const minPrice = 1
-        const dutchMultiplier = 10
+        const tokenDecimal = await traces.customTokenDecimals()
+        const minPrice = tokenDecimal.mul(1)
+        const dutchMultiplier = 9 // 9 - 1
         const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
           .subtract(2, 'hour')
           .unix()
@@ -980,8 +981,9 @@ describe('Traces functionality', function () {
         const fixture = await loadFixture(deployFixture)
         const { traces } = fixture
         const latestBlockTimestamp = (await time.latest()) * 1000
-        const minPrice = 1
-        const dutchMultiplier = 10
+        const tokenDecimal = await traces.customTokenDecimals()
+        const minPrice = tokenDecimal.mul(1)
+        const dutchMultiplier = 9
         const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
           .subtract(1, 'hour')
           .unix()
@@ -997,7 +999,38 @@ describe('Traces functionality', function () {
             duration
           )
         ).toString()
-        expect(Number(formatUnits(price))).to.closeTo(6.6, 0.1)
+        expect(Number(formatUnits(price))).to.closeTo(6.33, 0.01)
+      })
+      it('gets price limit after 1/2 of dutch auction duration when multiplier is 1', async function () {
+        const fixture = await loadFixture(deployFixture)
+        const { traces } = fixture
+        const latestBlockTimestamp = (await time.latest()) * 1000
+        const tokenDecimal = await traces.customTokenDecimals()
+        const minPrice = tokenDecimal.mul(100)
+        const dutchMultiplier = 1
+        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+          .subtract(5, 'hour')
+          .unix()
+        const duration =
+          dayjs(latestBlockTimestamp).add(10, 'hour').unix() -
+          dayjs(latestBlockTimestamp).unix()
+
+        // console.log(
+        //   minPrice.toString(),
+        //   dutchMultiplier,
+        //   latestBlockTimestamp / 1000,
+        //   lastOutbidTimestamp,
+        //   duration
+        // )
+        const price = (
+          await traces.getCurrentPrice(
+            minPrice,
+            lastOutbidTimestamp,
+            dutchMultiplier,
+            duration
+          )
+        ).toString()
+        expect(Number(formatUnits(price))).to.equal(100)
       })
     })
     describe('getWNFTPrice()', async function () {
@@ -1058,9 +1091,24 @@ describe('Traces functionality', function () {
         )
         const price = await traces.getWNFTPrice(wNFT.tokenId)
 
-        expect(Number(formatUnits(price))).to.eql(
-          Number(formatUnits(amount)) * (multiplier / 2)
+        const newWNFT = await traces.wnftList(
+          wNFT.ogTokenAddress,
+          wNFT.ogTokenId
         )
+
+        expect(formatUnits(price)).to.eql(
+          formatUnits(
+            newWNFT.stakedAmount.add(
+              newWNFT.stakedAmount
+                .mul(multiplier)
+                .sub(newWNFT.stakedAmount)
+                .div(2)
+            )
+          )
+        )
+        // expect(Number(formatUnits(price))).to.eql(
+        //   Number(formatUnits(amount.mul(multiplier))) / 2
+        // )
       })
       it('returns initial price when wnft is unstaked', async function () {
         const fixture = await loadFixture(deployFixture)

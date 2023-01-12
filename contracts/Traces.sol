@@ -46,6 +46,7 @@ contract Traces is
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
+  uint256 public constant PRECISION = 10**8;
   bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
   bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
 
@@ -167,6 +168,7 @@ contract Traces is
     IERC20 _tokenAddress,
     string memory _url
   ) ERC721('Fingerprints Traces', 'FPTR') {
+    require(_vaultAddress != address(0), 'Vault address cant be 0');
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
     _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
@@ -224,6 +226,7 @@ contract Traces is
     external
     onlyRole(DEFAULT_ADMIN_ROLE)
   {
+    require(_vaultAddress != address(0), 'Vault address cant be 0');
     vaultAddress = _vaultAddress;
   }
 
@@ -255,7 +258,7 @@ contract Traces is
 
   /// @notice Returns the current price on according to parameters sent
   /// @dev It is used to calculate the price of a dutch auction
-  /// @param priceLimit the minimum price the wnft can have
+  /// @param priceLimit the minimum price the wnft can have with decimals of erc20 token (usually 18)
   /// @param lastTimestamp last time the wnft was outbidded
   /// @param dutchMultiplier base to reach the max price of wnft when in dutch auction phase
   /// @param duration the duration of dutch auction (in seconds)
@@ -267,16 +270,18 @@ contract Traces is
     uint256 duration
   ) public view returns (uint256) {
     // Auction ended
-    if (block.timestamp >= lastTimestamp.add(duration))
-      return priceLimit.mul(customTokenDecimals);
+    if (block.timestamp >= lastTimestamp.add(duration)) return priceLimit;
 
     return
-      priceLimit.mul(dutchMultiplier).mul(
-        customTokenDecimals.sub(
-          (block.timestamp.sub(lastTimestamp)).mul(customTokenDecimals).div(
-            duration
+      priceLimit.add(
+        priceLimit
+          .mul(dutchMultiplier.sub(1))
+          .mul(
+            PRECISION.sub(
+              block.timestamp.sub(lastTimestamp).mul(PRECISION).div(duration)
+            )
           )
-        )
+          .div(PRECISION)
       );
   }
 
@@ -297,7 +302,7 @@ contract Traces is
 
     return
       getCurrentPrice(
-        token.stakedAmount.div(customTokenDecimals),
+        token.stakedAmount,
         token.lastOutbidTimestamp.add(token.minHoldPeriod),
         token.dutchMultiplier,
         token.dutchAuctionDuration
@@ -350,8 +355,8 @@ contract Traces is
       emit CollectionAdded(collection[_ogTokenAddress].id, _ogTokenAddress);
     }
 
-    // create the wnft id - sum of collection.id, collection.count and 1
-    // also increment collection.totalMinted
+    // create the new token id based on collection id and totalMinted
+    // even after a token is burned, the id will never be reused, which may cause issues
     uint256 newTokenId = collection[_ogTokenAddress].id.add(
       collection[_ogTokenAddress].totalMinted++
     );
@@ -431,14 +436,8 @@ contract Traces is
     _safeTransfer(_owner, msg.sender, token.tokenId, '');
     // transfer erc20 custom token from outbidder to this contract
     customTokenAddress.safeTransferFrom(msg.sender, address(this), _amount);
-    // allowance to transfer erc20 staked token back to previous oubidder
-    customTokenAddress.safeApprove(address(this), token.stakedAmount);
     // transfer the staked amount to previous outbidder
-    customTokenAddress.safeTransferFrom(
-      address(this),
-      _owner,
-      token.stakedAmount
-    );
+    customTokenAddress.safeTransfer(_owner, token.stakedAmount);
 
     // emits an event when outbid happens with important data
     emit Outbid(
@@ -474,16 +473,10 @@ contract Traces is
     wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
       wrappedIdToOgToken[_tokenId].id
     ].lastOutbidTimestamp = 0;
-    // allowance to transfer erc20 tokens from this contract
-    customTokenAddress.safeApprove(address(this), token.stakedAmount);
     // transfer outbidder wnft back to this contract
     _safeTransfer(_owner, address(this), _tokenId, '');
     // transfer erc20 custom token from this contract back to the user
-    customTokenAddress.safeTransferFrom(
-      address(this),
-      _owner,
-      token.stakedAmount
-    );
+    customTokenAddress.safeTransfer(_owner, token.stakedAmount);
   }
 
   /**
