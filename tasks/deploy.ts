@@ -39,7 +39,7 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
   .setAction(
     async (
       { vaultAddress, adminAddress, printsAddress, autoDeploy },
-      { ethers }
+      { ethers, upgrades }
     ) => {
       const network = await ethers.provider.getNetwork()
 
@@ -145,13 +145,28 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
         }
         console.log(`Deploying ${name}...`)
 
-        const deployedContract = await factory.deploy(
-          ...(contract.args?.map((a) => (typeof a === 'function' ? a() : a)) ??
-            []),
-          {
-            gasPrice,
-          }
-        )
+        let deployedContract: EthersContract
+        if (name === 'Traces') {
+          console.log('Deploying Traces')
+          const args = contract.args?.map((a) =>
+            typeof a === 'function' ? a() : a
+          )
+          deployedContract = await upgrades.deployProxy(factory, [
+            ...(args ?? []),
+            {
+              gasPrice,
+            },
+          ])
+        } else {
+          deployedContract = await factory.deploy(
+            ...(contract.args?.map((a) =>
+              typeof a === 'function' ? a() : a
+            ) ?? []),
+            {
+              gasPrice,
+            }
+          )
+        }
 
         if (contract.waitForConfirmation) {
           await deployedContract.deployed()

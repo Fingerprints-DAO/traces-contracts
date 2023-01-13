@@ -5,6 +5,8 @@ import 'hardhat-watcher'
 import 'hardhat-contract-sizer'
 import 'hardhat-docgen'
 import 'hardhat-gas-reporter'
+import '@nomiclabs/hardhat-ethers'
+import '@openzeppelin/hardhat-upgrades'
 import 'dotenv/config'
 import './tasks'
 

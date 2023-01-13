@@ -34,37 +34,40 @@ describe('Traces basic', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy(
+
+    const traces = await Traces.deploy()
+    await traces.initialize(
       owner.address,
       FPVaultAddress,
       erc20mock.address,
       baseURI
     )
 
-    return { trace, deployer, owner, FPVaultAddress, staker1 }
+    return { traces, deployer, owner, FPVaultAddress, staker1 }
   }
 
   describe('Deployment', function () {
     it('deploys the contract extending ERC721', async function () {
-      const { trace } = await loadFixture(deployFixture)
+      const { traces } = await loadFixture(deployFixture)
 
-      expect(await trace.totalSupply()).to.eq(0)
+      expect(await traces.totalSupply()).to.eq(0)
     })
     it('checks DEFAULT_ADMIN_ROLE to the deployer', async function () {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
 
-      expect(await trace.hasRole(trace.DEFAULT_ADMIN_ROLE(), owner.address)).to
-        .be.true
+      expect(await traces.hasRole(traces.DEFAULT_ADMIN_ROLE(), owner.address))
+        .to.be.true
     })
     it('checks EDITOR_ROLE to the deployer', async function () {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
 
-      expect(await trace.hasRole(trace.EDITOR_ROLE(), owner.address)).to.be.true
+      expect(await traces.hasRole(traces.EDITOR_ROLE(), owner.address)).to.be
+        .true
     })
     it('saves FP address when deploying', async function () {
-      const { trace, FPVaultAddress } = await loadFixture(deployFixture)
+      const { traces, FPVaultAddress } = await loadFixture(deployFixture)
 
-      expect(await trace.vaultAddress()).to.match(
+      expect(await traces.vaultAddress()).to.match(
         new RegExp(FPVaultAddress, 'i')
       )
     })
@@ -72,73 +75,75 @@ describe('Traces basic', function () {
 
   describe('Settings', function () {
     it('returns error when calling setVaultAddress without right permission', async function () {
-      const { trace } = await loadFixture(deployFixture)
+      const { traces } = await loadFixture(deployFixture)
 
-      await expect(trace.setVaultAddress(faker.finance.ethereumAddress())).to
+      await expect(traces.setVaultAddress(faker.finance.ethereumAddress())).to
         .reverted
     })
     it('returns properly the new vaultAddress after executed setVaultAddress', async function () {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
       const newVaultAddress = faker.finance.ethereumAddress()
 
-      await trace.connect(owner).setVaultAddress(newVaultAddress)
+      await traces.connect(owner).setVaultAddress(newVaultAddress)
 
-      expect(await trace.vaultAddress()).to.match(
+      expect(await traces.vaultAddress()).to.match(
         new RegExp(newVaultAddress, 'i')
       )
     })
     it('allows admin to pause the contract', async () => {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
 
-      await trace.connect(owner).pause()
-      expect(await trace.paused()).to.be.equal(true)
+      await traces.connect(owner).pause()
+      expect(await traces.paused()).to.be.equal(true)
     })
     it('allows admin to unpause the contract', async () => {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
 
-      await trace.connect(owner).pause()
-      await trace.connect(owner).unpause()
-      expect(await trace.paused()).to.be.equal(false)
+      await traces.connect(owner).pause()
+      await traces.connect(owner).unpause()
+      expect(await traces.paused()).to.be.equal(false)
     })
     it('doesnt allow editor to pause the contract', async () => {
-      const { trace, owner, staker1 } = await loadFixture(deployFixture)
+      const { traces, owner, staker1 } = await loadFixture(deployFixture)
 
-      const EDITOR_ROLE = await trace.connect(owner).EDITOR_ROLE()
-      await trace.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
-      await expect(trace.connect(staker1).pause()).to.be.reverted
+      const EDITOR_ROLE = await traces.connect(owner).EDITOR_ROLE()
+      await traces.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
+      await expect(traces.connect(staker1).pause()).to.be.reverted
     })
     it('doesnt allow editor to change erc20 settings', async () => {
-      const { trace, owner, staker1 } = await loadFixture(deployFixture)
+      const { traces, owner, staker1 } = await loadFixture(deployFixture)
 
-      const EDITOR_ROLE = await trace.connect(owner).EDITOR_ROLE()
-      await trace.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
+      const EDITOR_ROLE = await traces.connect(owner).EDITOR_ROLE()
+      await traces.connect(owner).grantRole(EDITOR_ROLE, staker1.address)
       await expect(
-        trace
+        traces
           .connect(staker1)
           .setERC20Token(faker.finance.ethereumAddress(), 10)
       ).to.be.reverted
     })
     it('throws error if send an invalid address or 0 on setERC20Token()', async () => {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
 
       await expect(
-        trace
+        traces
           .connect(owner)
           .setERC20Token('0x0000000000000000000000000000000000000000', 10)
       ).to.be.revertedWith(ERROR.INVALID_ERC20_ARGS)
       await expect(
-        trace.connect(owner).setERC20Token(faker.finance.ethereumAddress(), 1)
+        traces.connect(owner).setERC20Token(faker.finance.ethereumAddress(), 1)
       ).to.be.revertedWith(ERROR.INVALID_ERC20_ARGS)
     })
     it('changes correctly the erc20 settings when calling setERC20Token() by owner', async () => {
-      const { trace, owner } = await loadFixture(deployFixture)
+      const { traces, owner } = await loadFixture(deployFixture)
       const address = faker.finance.ethereumAddress()
       const decimals = BigNumber.from(10).pow(18)
 
-      await trace.connect(owner).setERC20Token(address, decimals)
+      await traces.connect(owner).setERC20Token(address, decimals)
 
-      expect((await trace.customTokenAddress()).toLowerCase()).to.be.eq(address)
-      expect(await trace.customTokenDecimals()).to.be.eq(decimals)
+      expect((await traces.customTokenAddress()).toLowerCase()).to.be.eq(
+        address
+      )
+      expect(await traces.customTokenDecimals()).to.be.eq(decimals)
     })
   })
 })
@@ -162,7 +167,8 @@ describe('Traces admin', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-    const trace = await Traces.deploy(
+    const traces = await Traces.deploy()
+    await traces.initialize(
       owner.address,
       FPVaultAddress,
       erc20mock.address,
@@ -182,7 +188,7 @@ describe('Traces admin', function () {
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenData[1])
 
     return {
-      trace,
+      traces,
       deployer,
       owner,
       FPVaultAddress,
@@ -194,28 +200,28 @@ describe('Traces admin', function () {
   }
 
   it('returns error when calling addToken without right permission', async function () {
-    const { deployer, trace } = await loadFixture(deployFixtureWith721)
+    const { deployer, traces } = await loadFixture(deployFixtureWith721)
     const args = generateTokenData()
-    const EDITOR_ROLE = await trace.EDITOR_ROLE()
+    const EDITOR_ROLE = await traces.EDITOR_ROLE()
 
-    await expect(trace.connect(deployer).addToken(...args)).to.revertedWith(
+    await expect(traces.connect(deployer).addToken(...args)).to.revertedWith(
       getAccessControlError(deployer.address, EDITOR_ROLE)
     )
   })
 
   it('doesnt give error when calling addToken with admin permission', async function () {
-    const { owner, trace, tokenData } = await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const { owner, traces, tokenData } = await loadFixture(deployFixtureWith721)
+    const conn = traces.connect(owner)
 
     await expect(conn.addToken(...tokenData)).to.not.reverted
   })
   it('returns token struct with right data after calling addToken', async function () {
-    const { owner, trace, tokenData } = await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const { owner, traces, tokenData } = await loadFixture(deployFixtureWith721)
+    const conn = traces.connect(owner)
     const [tokenAddress, tokenId, minStake] = tokenData
 
     await conn.addToken(...tokenData)
-    const { totalMinted, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await traces.collection(tokenAddress)
     const WNFT = await conn.wnftList(tokenAddress, tokenId)
 
     expect(WNFT.ogTokenId).to.eq(tokenId)
@@ -224,9 +230,9 @@ describe('Traces admin', function () {
     expect(WNFT.firstStakePrice).to.eq(minStake)
   })
   it('returns TokenAdded event after calling addToken', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
       tokenData
     const tokenId = 2
@@ -243,13 +249,13 @@ describe('Traces admin', function () {
     const { events } = await tx.wait()
     //@ts-ignore
     const [_x, , event] = events
-    const { totalMinted, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await traces.collection(tokenAddress)
 
     expect(event?.args?.ogTokenAddress).to.match(RegExp(tokenAddress, 'i'))
     expect(event?.args?.ogTokenId).to.eq(tokenId)
     expect(event?.args?.tokenId).to.eq(id.add(totalMinted).sub(1))
     expect(tx)
-      .to.emit(trace, 'TokenAdded')
+      .to.emit(traces, 'TokenAdded')
       .withArgs(
         tokenAddress,
         tokenId,
@@ -259,57 +265,57 @@ describe('Traces admin', function () {
       )
   })
   it('returns error when trying to get an uri from a token that doesnt exists', async function () {
-    const { trace } = await loadFixture(deployFixtureWith721)
+    const { traces } = await loadFixture(deployFixtureWith721)
 
-    await expect(trace.tokenURI(1000)).to.be.reverted
+    await expect(traces.tokenURI(1000)).to.be.reverted
   })
   it('returns right uri when token exists', async function () {
-    const { trace, owner, tokenData, baseURI } = await loadFixture(
+    const { traces, owner, tokenData, baseURI } = await loadFixture(
       deployFixtureWith721
     )
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [contractAddress, nftId] = tokenData
 
     await conn.addToken(...tokenData)
-    const WNFT = await trace.wnftList(contractAddress, nftId)
+    const WNFT = await traces.wnftList(contractAddress, nftId)
 
-    const tokenURI = await trace.tokenURI(WNFT.tokenId)
+    const tokenURI = await traces.tokenURI(WNFT.tokenId)
     expect(tokenURI).to.eql(`${baseURI}${WNFT.tokenId.toString()}`)
   })
   it('returns error when trying to set an uri without admin role', async function () {
-    const { trace } = await loadFixture(deployFixtureWith721)
+    const { traces } = await loadFixture(deployFixtureWith721)
     const newURI = `${faker.internet.url()}/`
 
-    await expect(trace.setBaseURI(newURI)).to.be.reverted
+    await expect(traces.setBaseURI(newURI)).to.be.reverted
   })
   it('returns right uri after calling setBaseURI', async function () {
-    const { trace, owner, tokenData, baseURI } = await loadFixture(
+    const { traces, owner, tokenData, baseURI } = await loadFixture(
       deployFixtureWith721
     )
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [contractAddress, nftId] = tokenData
     const newURI = `${faker.internet.url()}/`
 
     await conn.addToken(...tokenData)
     await conn.setBaseURI(newURI)
 
-    const WNFT = await trace.wnftList(contractAddress, nftId)
+    const WNFT = await traces.wnftList(contractAddress, nftId)
 
-    expect(await trace.tokenURI(WNFT.tokenId)).to.eql(
+    expect(await traces.tokenURI(WNFT.tokenId)).to.eql(
       `${newURI}${WNFT.tokenId.toString()}`
     )
   })
   it('mints the wnft to the contract after adding the data', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
       tokenData
     const tokenId = 2
 
     await erc721mock.connect(minter1).mint(FPVaultAddress, tokenId)
 
-    expect(await trace.balanceOf(trace.address)).to.eq(0)
+    expect(await traces.balanceOf(traces.address)).to.eq(0)
     await conn.addToken(
       tokenAddress,
       tokenId,
@@ -318,15 +324,17 @@ describe('Traces admin', function () {
       multiplier,
       duration
     )
-    const { totalMinted, id } = await trace.collection(tokenAddress)
+    const { totalMinted, id } = await traces.collection(tokenAddress)
 
-    expect(await trace.balanceOf(trace.address)).to.eq(1)
-    expect(await trace.ownerOf(id.add(totalMinted).sub(1))).to.eq(trace.address)
+    expect(await traces.balanceOf(traces.address)).to.eq(1)
+    expect(await traces.ownerOf(id.add(totalMinted).sub(1))).to.eq(
+      traces.address
+    )
   })
   it('adds another collection when adding nft from other collection', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
 
     const ERC721Mock2 = await ethers.getContractFactory('ERC721Mock')
     const erc721mock2 = await ERC721Mock2.deploy(
@@ -348,23 +356,23 @@ describe('Traces admin', function () {
     await conn.addToken(...tokenData)
     await conn.addToken(...tokenData2)
 
-    const collection = await trace.collection(tokenData[0])
-    const collection2 = await trace.collection(tokenData2[0])
+    const collection = await traces.collection(tokenData[0])
+    const collection2 = await traces.collection(tokenData2[0])
 
-    expect(await trace.balanceOf(trace.address)).to.eq(2)
+    expect(await traces.balanceOf(traces.address)).to.eq(2)
     expect(
-      await trace.ownerOf(collection.id.add(collection.totalMinted).sub(1))
-    ).to.eq(trace.address)
+      await traces.ownerOf(collection.id.add(collection.totalMinted).sub(1))
+    ).to.eq(traces.address)
     expect(
-      await trace.ownerOf(collection2.id.add(collection2.totalMinted).sub(1))
-    ).to.eq(trace.address)
+      await traces.ownerOf(collection2.id.add(collection2.totalMinted).sub(1))
+    ).to.eq(traces.address)
     expect(collection.id).to.eq(1_000_000)
     expect(collection2.id).to.eq(2_000_000)
   })
   it('adds 2 of the same collection and get correct ids', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
 
     const tokenId = 2
     const tokenId2 = 3
@@ -391,17 +399,17 @@ describe('Traces admin', function () {
       duration
     )
 
-    const collection = await trace.collection(tokenData[0])
+    const collection = await traces.collection(tokenData[0])
 
-    expect(await trace.balanceOf(trace.address)).to.eq(2)
-    expect(await trace.ownerOf(1_000_000)).to.eq(trace.address)
-    expect(await trace.ownerOf(1_000_001)).to.eq(trace.address)
+    expect(await traces.balanceOf(traces.address)).to.eq(2)
+    expect(await traces.ownerOf(1_000_000)).to.eq(traces.address)
+    expect(await traces.ownerOf(1_000_001)).to.eq(traces.address)
     expect(collection.id).to.eq(1_000_000)
   })
   it('returns error if token is already added', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [tokenAddress, _, minStake, holdPeriod, multiplier, duration] =
       tokenData
     const tokenId = 2
@@ -425,12 +433,12 @@ describe('Traces admin', function () {
         multiplier,
         duration
       )
-    ).to.revertedWithCustomError(trace, ERROR.DUPLICATED_TOKEN)
+    ).to.revertedWithCustomError(traces, ERROR.DUPLICATED_TOKEN)
   })
   it('returns success if delete older wnft and add a new one', async function () {
-    const { owner, trace, FPVaultAddress, minter1, tokenData, erc721mock } =
+    const { owner, traces, FPVaultAddress, minter1, tokenData, erc721mock } =
       await loadFixture(deployFixtureWith721)
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
     const [tokenAddress, tokenId, minStake, holdPeriod, multiplier, duration] =
       tokenData
     const tokenData1 = generateTokenData({
@@ -452,7 +460,7 @@ describe('Traces admin', function () {
       conn.addToken(...tokenData2),
     ])
 
-    const { tokenId: wnftTokenId } = await trace.wnftList(
+    const { tokenId: wnftTokenId } = await traces.wnftList(
       tokenAddress,
       tokenData1[1]
     )
@@ -460,17 +468,17 @@ describe('Traces admin', function () {
 
     await expect(conn.addToken(...tokenData1)).to.not.reverted
 
-    const { ogTokenId } = await trace.wnftList(tokenAddress, tokenData1[1])
+    const { ogTokenId } = await traces.wnftList(tokenAddress, tokenData1[1])
 
     expect(ogTokenId).to.eq(tokenData1[1])
   })
   it('returns error if FP vault is not owner of the sent token', async function () {
-    const { erc721mock, minter1, owner, trace } = await loadFixture(
+    const { erc721mock, minter1, owner, traces } = await loadFixture(
       deployFixtureWith721
     )
     const [tokenId, _, minStake, holdPeriod, multiplier, duration] =
       generateTokenData()
-    const conn = trace.connect(owner)
+    const conn = traces.connect(owner)
 
     await erc721mock.connect(minter1).mint(minter1.address, tokenId)
 
@@ -485,10 +493,10 @@ describe('Traces admin', function () {
         multiplier,
         duration
       )
-    ).to.revertedWithCustomError(trace, ERROR.NOT_OWNER_OF_TOKEN)
+    ).to.revertedWithCustomError(traces, ERROR.NOT_OWNER_OF_TOKEN)
   })
   it('returns error when calling addToken without an erc721 contract address', async function () {
-    const { erc721mock, minter1, owner, trace } = await loadFixture(
+    const { erc721mock, minter1, owner, traces } = await loadFixture(
       deployFixtureWith721
     )
     const data = generateTokenData()
@@ -496,8 +504,8 @@ describe('Traces admin', function () {
     await erc721mock.connect(minter1).mint(minter1.address, data[1])
 
     await expect(
-      trace.connect(owner).addToken(...data)
-    ).to.revertedWithCustomError(trace, ERROR.INVALID_721_CONTRACT)
+      traces.connect(owner).addToken(...data)
+    ).to.revertedWithCustomError(traces, ERROR.INVALID_721_CONTRACT)
   })
 })
 
@@ -530,7 +538,8 @@ describe('Traces functionality', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-    const traces = await Traces.deploy(
+    const traces = await Traces.deploy()
+    await traces.initialize(
       owner.address,
       FPVaultAddress,
       erc20mock.address,

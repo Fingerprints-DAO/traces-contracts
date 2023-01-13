@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
-import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
-import '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import '@openzeppelin/contracts/utils/Address.sol';
-import '@openzeppelin/contracts/access/AccessControl.sol';
-import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
-import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
-import '@openzeppelin/contracts/security/Pausable.sol';
+import '@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
+
+import '@openzeppelin/contracts-upgradeable/utils/introspection/ERC165CheckerUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
 
 // Uncomment this line to u
 // import 'hardhat/console.sol';
@@ -36,19 +38,20 @@ error NoPermission(uint256 tokenId, address owner);
 /// @dev This contract is extended of erc721 and mint NFTs based in the original NFT added by these contract functions.
 /// There are only 2 Roles: Admin and Editor.
 contract Traces is
-  ERC721Enumerable,
-  Pausable,
-  AccessControl,
-  ReentrancyGuard,
-  IERC721Receiver
+  Initializable,
+  ERC721EnumerableUpgradeable,
+  PausableUpgradeable,
+  AccessControlUpgradeable,
+  ReentrancyGuardUpgradeable,
+  IERC721ReceiverUpgradeable
 {
-  using ERC165Checker for address;
-  using SafeMath for uint256;
-  using SafeERC20 for IERC20;
+  using ERC165CheckerUpgradeable for address;
+  using SafeMathUpgradeable for uint256;
+  using SafeERC20Upgradeable for IERC20Upgradeable;
 
   uint256 public constant PRECISION = 10**8;
   bytes32 public constant EDITOR_ROLE = keccak256('EDITOR_ROLE');
-  bytes4 public constant IID_IERC721 = type(IERC721).interfaceId;
+  bytes4 public constant IID_IERC721 = type(IERC721Upgradeable).interfaceId;
 
   /// @notice Stores the url to WNFT metadata
   string public baseURI;
@@ -61,8 +64,8 @@ contract Traces is
   /// @notice Stores custom token details as ERC20 smart contract address and decimals used on this token
   /// @dev Current it stores the $prints details. The current token from Fingerprints DAO. It's not possible to get decimals from erc20 contract, that is why we need it set manually.
   /// @return A smart contract address and decimals from this smart contract
-  IERC20 public customTokenAddress;
-  uint256 public customTokenDecimals = 10**18;
+  IERC20Upgradeable public customTokenAddress;
+  uint256 public customTokenDecimals;
 
   /// @notice Stores a list of wrapped token(NFT) created and minted
   /// @dev The list has 2 keys to access the wrapped token: original token address and original token id
@@ -78,7 +81,7 @@ contract Traces is
   /// It's based on address of original erc721 NFT
   mapping(address => CollectionInfo) public collection;
 
-  uint256 public collectionCounter = 1;
+  uint256 public collectionCounter;
   uint256 public constant COLLECTION_MULTIPLIER = 1_000_000;
 
   struct OgToken {
@@ -162,18 +165,21 @@ contract Traces is
   /// @param _adminAddress the user to be add the ADMIN and EDITOR roles
   /// @param _vaultAddress vault where allowed NFTs are to be used in this contract (Fingerprints DAO vault)
   /// @param _tokenAddress ERC20 contract address to be used as currency for staking ($PRINTS)
-  constructor(
+  function initialize(
     address _adminAddress,
     address _vaultAddress,
-    IERC20 _tokenAddress,
+    IERC20Upgradeable _tokenAddress,
     string memory _url
-  ) ERC721('Fingerprints Traces', 'FPTR') {
+  ) public initializer {
     require(_vaultAddress != address(0), 'Vault address cant be 0');
+    __ERC721_init('Fingerprints Traces', 'FPT');
     _grantRole(DEFAULT_ADMIN_ROLE, _adminAddress);
     _grantRole(EDITOR_ROLE, _adminAddress);
     vaultAddress = _vaultAddress;
     customTokenAddress = _tokenAddress;
     baseURI = _url;
+    collectionCounter = 1;
+    customTokenDecimals = 10**18;
   }
 
   /**
@@ -336,7 +342,9 @@ contract Traces is
     _isERC721Contract(_ogTokenAddress)
   {
     // throws error if original nft contract is not an erc721
-    if (IERC721(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress) {
+    if (
+      IERC721Upgradeable(_ogTokenAddress).ownerOf((_ogTokenId)) != vaultAddress
+    ) {
       revert NotOwnerOfToken(_ogTokenAddress, _ogTokenId, vaultAddress);
     }
     // throws error if nft is already added
@@ -515,7 +523,7 @@ contract Traces is
   /// @param _customTokenAddress the new erc20 contract adress
   /// @param _customTokenDecimals the decimals base used on erc20 contract address
   function setERC20Token(
-    IERC20 _customTokenAddress,
+    IERC20Upgradeable _customTokenAddress,
     uint256 _customTokenDecimals
   ) external onlyRole(DEFAULT_ADMIN_ROLE) {
     require(
@@ -562,11 +570,11 @@ contract Traces is
     public
     view
     virtual
-    override(ERC721Enumerable, AccessControl)
+    override(AccessControlUpgradeable, ERC721EnumerableUpgradeable)
     returns (bool)
   {
     return
-      interfaceId == type(IERC721Enumerable).interfaceId ||
+      interfaceId == type(IERC721EnumerableUpgradeable).interfaceId ||
       super.supportsInterface(interfaceId);
   }
 
@@ -576,6 +584,6 @@ contract Traces is
     uint256,
     bytes calldata
   ) external pure returns (bytes4) {
-    return IERC721Receiver.onERC721Received.selector;
+    return IERC721ReceiverUpgradeable.onERC721Received.selector;
   }
 }

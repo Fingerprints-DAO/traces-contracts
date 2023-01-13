@@ -12,7 +12,7 @@ interface Contract {
 }
 
 task('deploy-local', 'Deploy contracts to hardhat').setAction(
-  async (_, { ethers }) => {
+  async (_, { ethers, upgrades }) => {
     const network = await ethers.provider.getNetwork()
     if (network.chainId !== 31337) {
       console.log(`Invalid chain id. Expected 31337. Got: ${network.chainId}.`)
@@ -44,10 +44,22 @@ task('deploy-local', 'Deploy contracts to hardhat').setAction(
         libraries: contract?.libraries?.(),
       })
 
-      const deployedContract = await factory.deploy(
-        ...(contract.args?.map((a) => (typeof a === 'function' ? a() : a)) ??
-          [])
-      )
+      let deployedContract: EthersContract
+
+      if (name === 'Traces') {
+        deployedContract = await upgrades.deployProxy(
+          factory,
+          contract.args?.map((a) => (typeof a === 'function' ? a() : a)) ?? [],
+          {
+            kind: 'transparent',
+          }
+        )
+      } else {
+        deployedContract = await factory.deploy(
+          ...(contract.args?.map((a) => (typeof a === 'function' ? a() : a)) ??
+            [])
+        )
+      }
 
       if (contract.waitForConfirmation) {
         await deployedContract.deployed()
