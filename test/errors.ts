@@ -7,6 +7,7 @@ export enum ERROR {
   INVALID_AMOUNT = 'InvalidAmount',
   INVALID_TOKEN_ID = 'InvalidTokenId',
   HOLD_PERIOD = 'HoldPeriod',
+  STAKE_LOCKED = 'StakeLocked',
   NO_PERMISSION = 'NoPermission',
   INVALID_ERC20_ARGS = 'Invalid address or decimals',
 }

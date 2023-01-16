@@ -4,7 +4,6 @@ import '@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol'
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
-
 import '@openzeppelin/contracts-upgradeable/utils/introspection/ERC165CheckerUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
@@ -28,6 +27,7 @@ error InvalidAmount(
 error TransferNotAllowed(uint256 expectedAmount);
 error InvalidTokenId(address ogTokenAddress, uint256 ogTokenId);
 error HoldPeriod(address ogTokenAddress, uint256 ogTokenId);
+error StakeLocked(address ogTokenAddress, uint256 ogTokenId);
 error NoPermission(uint256 tokenId, address owner);
 
 /// @title Traces Smart Contract by Fingerprints DAO - v1
@@ -206,6 +206,22 @@ contract Traces is
   {
     if (lastOutbid == 0) return false;
     return lastOutbid.add(minHoldPeriod) > block.timestamp;
+  }
+
+  /// @notice Checks if WNFT is on dutch auction time
+  /// @dev when in dutch auction period, the price is calculated by the time passed
+  /// @param lastOutbid timestamp of last time that was outbidded
+  /// @param minHoldPeriod time required to be hold before someone outbid it
+  /// @param dutchAuctionDuration time required to be hold before someone outbid it
+  /// @return bool if it's on dutch auction period or not
+  function isDutchAuctionPeriod(
+    uint256 lastOutbid,
+    uint256 minHoldPeriod,
+    uint256 dutchAuctionDuration
+  ) public view returns (bool) {
+    if (lastOutbid == 0) return false;
+    return
+      lastOutbid.add(minHoldPeriod).add(dutchAuctionDuration) > block.timestamp;
   }
 
   /// @notice Checks if the user has allowed enough tokens to this contract to move and stake
@@ -472,6 +488,17 @@ contract Traces is
       revert NoPermission(_tokenId, _owner);
 
     WrappedToken memory token = getToken(_tokenId);
+
+    // if wnft is on hold period or dutch auction period, it can't be unstaked
+    if (
+      !hasRole(EDITOR_ROLE, msg.sender) &&
+      (isHoldPeriod(token.lastOutbidTimestamp, token.minHoldPeriod) ||
+        isDutchAuctionPeriod(
+          token.lastOutbidTimestamp,
+          token.minHoldPeriod,
+          token.dutchAuctionDuration
+        ))
+    ) revert StakeLocked(token.ogTokenAddress, token.ogTokenId);
 
     // reset staked amount
     wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][

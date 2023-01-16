@@ -11,6 +11,7 @@ import { ERROR } from './errors'
 import { generateTokenData } from './token'
 import { formatUnits, parseUnits } from 'ethers/lib/utils'
 import { BigNumber } from 'ethers'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 const getAccessControlError = (address: string, role: string) =>
   `AccessControl: account ${address.toLowerCase()} is missing role ${role}`
@@ -515,7 +516,7 @@ describe('Traces functionality', function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deployFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [deployer, owner, minter1, staker1, staker2] =
+    const [deployer, owner, minter1, staker1, staker2, staker3] =
       await ethers.getSigners()
     const FPVaultAddress = faker.finance.ethereumAddress()
     const amount = 1_000_000
@@ -573,19 +574,23 @@ describe('Traces functionality', function () {
       amount,
       staker1,
       staker2,
+      staker3,
     }
   }
   async function mintAndStake(
-    fixture: Awaited<ReturnType<typeof deployFixture>>
+    fixture: Awaited<ReturnType<typeof deployFixture>>,
+    staker?: SignerWithAddress
   ) {
     const { traces, owner, tokenData, staker1, erc20mock } = fixture
     const [contractAddress, nftId, amount] = tokenData
 
     await Promise.all([
       traces.connect(owner).addToken(...tokenData),
-      erc20mock.connect(staker1).approve(traces.address, amount),
+      erc20mock.connect(staker ?? staker1).approve(traces.address, amount),
     ])
-    await traces.connect(staker1).outbid(contractAddress, nftId, amount)
+    await traces
+      .connect(staker ?? staker1)
+      .outbid(contractAddress, nftId, amount)
     return await traces.wnftList(contractAddress, nftId)
   }
 
@@ -920,41 +925,110 @@ describe('Traces functionality', function () {
   describe('unstake()', async function () {
     it('returns error if user is not the wnft owner', async function () {
       const fixture = await loadFixture(deployFixture)
+      const { traces, staker2, staker3 } = fixture
+      const wNFT = await mintAndStake(fixture, staker2)
+
+      await expect(
+        traces.connect(staker3).unstake(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.NO_PERMISSION)
+    })
+    it('returns error if user tries to unstake and wnft is on hold period', async function () {
+      const fixture = await loadFixture(deployFixture)
       const { traces, staker2 } = fixture
-      const wNFT = await mintAndStake(fixture)
+      const wNFT = await mintAndStake(fixture, staker2)
+
+      await expect(
+        traces.getWNFTPrice(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
+      await expect(
+        traces.connect(staker2).unstake(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.STAKE_LOCKED)
+    })
+    it('returns error if user tries to unstake and wnft is on dutch auction period', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, staker2 } = fixture
+      const wNFT = await mintAndStake(fixture, staker2)
+      const latestBlockTimestamp = (await time.latest()) * 1000
+
+      await time.increaseTo(
+        dayjs(latestBlockTimestamp)
+          .add(wNFT.minHoldPeriod.toNumber(), 'second')
+          .unix()
+      )
 
       await expect(
         traces.connect(staker2).unstake(wNFT.tokenId)
-      ).to.revertedWithCustomError(traces, ERROR.NO_PERMISSION)
+      ).to.revertedWithCustomError(traces, ERROR.STAKE_LOCKED)
     })
     it('unstakes user $prints and return the wnft', async function () {
       const fixture = await loadFixture(deployFixture)
-      const { traces, staker1, erc20mock } = fixture
-      const wNFT = await mintAndStake(fixture)
+      const { traces, staker2, erc20mock } = fixture
+      const wNFT = await mintAndStake(fixture, staker2)
       const stakedAmount = wNFT.firstStakePrice
-      const stakerBalance = await erc20mock.balanceOf(staker1.address)
+      const stakerBalance = await erc20mock.balanceOf(staker2.address)
 
-      await traces.connect(staker1).unstake(wNFT.tokenId)
+      const latestBlockTimestamp = (await time.latest()) * 1000
 
-      expect(await traces.balanceOf(staker1.address)).to.eq(0)
-      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+      await time.increaseTo(
+        dayjs(latestBlockTimestamp)
+          .add(wNFT.minHoldPeriod.toNumber(), 'second')
+          .add(wNFT.lastOutbidTimestamp.toNumber(), 'second')
+          .unix()
+      )
+      await traces.connect(staker2).unstake(wNFT.tokenId)
+
+      expect(await traces.balanceOf(staker2.address)).to.eq(0)
+      expect(await erc20mock.balanceOf(staker2.address)).to.eq(
         stakerBalance.add(stakedAmount)
       )
     })
-    it('unstake user $prints when admin force it and return the wnft', async function () {
+    it('unstake user $prints when editor force it and return the wnft[Hold period]', async function () {
       const fixture = await loadFixture(deployFixture)
-      const { traces, erc20mock, staker2, staker1, owner } = fixture
-      const wNFT = await mintAndStake(fixture)
+      const { traces, erc20mock, staker2, staker3, owner } = fixture
+      const wNFT = await mintAndStake(fixture, staker2)
       const stakedAmount = wNFT.firstStakePrice
-      const stakerBalance = await erc20mock.balanceOf(staker1.address)
+      const stakerBalance = await erc20mock.balanceOf(staker2.address)
       const EDITOR_ROLE = await traces.EDITOR_ROLE()
 
-      await traces.connect(owner).grantRole(EDITOR_ROLE, staker2.address)
+      await expect(
+        traces.getWNFTPrice(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
 
-      await expect(traces.connect(staker2).unstake(wNFT.tokenId)).to.not
+      await traces.connect(owner).grantRole(EDITOR_ROLE, staker3.address)
+
+      await expect(traces.connect(staker3).unstake(wNFT.tokenId)).to.not
         .reverted
-      expect(await traces.balanceOf(staker1.address)).to.eq(0)
-      expect(await erc20mock.balanceOf(staker1.address)).to.eq(
+      expect(await traces.balanceOf(staker2.address)).to.eq(0)
+      expect(await erc20mock.balanceOf(staker2.address)).to.eq(
+        stakerBalance.add(stakedAmount)
+      )
+    })
+    it('unstake user $prints when editor force it and return the wnft[Dutch Auction]', async function () {
+      const fixture = await loadFixture(deployFixture)
+      const { traces, erc20mock, staker2, staker3, owner } = fixture
+      const wNFT = await mintAndStake(fixture, staker2)
+      const stakedAmount = wNFT.firstStakePrice
+      const stakerBalance = await erc20mock.balanceOf(staker2.address)
+      const EDITOR_ROLE = await traces.EDITOR_ROLE()
+
+      await expect(
+        traces.getWNFTPrice(wNFT.tokenId)
+      ).to.revertedWithCustomError(traces, ERROR.HOLD_PERIOD)
+
+      const latestBlockTimestamp = (await time.latest()) * 1000
+
+      await time.increaseTo(
+        dayjs(latestBlockTimestamp)
+          .add(wNFT.minHoldPeriod.add(100).toNumber(), 'second')
+          .unix()
+      )
+
+      await traces.connect(owner).grantRole(EDITOR_ROLE, staker3.address)
+
+      await expect(traces.connect(staker3).unstake(wNFT.tokenId)).to.not
+        .reverted
+      expect(await traces.balanceOf(staker2.address)).to.eq(0)
+      expect(await erc20mock.balanceOf(staker2.address)).to.eq(
         stakerBalance.add(stakedAmount)
       )
     })
