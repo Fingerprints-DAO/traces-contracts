@@ -869,31 +869,6 @@ describe('Traces functionality', function () {
             staker2.address
           )
       })
-      it('checks staked amount of a wnft after an outbid', async function () {
-        const { traces, owner, tokenData, staker1, staker2, erc20mock } =
-          await loadFixture(deployFixture)
-        const [contractAddress, nftId, amount, holdPeriod] = tokenData
-        let latestBlockTimestamp = await time.latest()
-
-        await traces.connect(owner).addToken(...tokenData)
-
-        await erc20mock.connect(staker1).approve(traces.address, amount)
-        await traces.connect(staker1).outbid(contractAddress, nftId, amount)
-
-        latestBlockTimestamp = await time.latest()
-        await time.increaseTo(
-          dayjs((latestBlockTimestamp + holdPeriod) * 1000).unix()
-        )
-        const wNFT = await traces.wnftList(contractAddress, nftId)
-        const currentPrice = await traces.getWNFTPrice(wNFT.tokenId)
-
-        await erc20mock.connect(staker2).approve(traces.address, currentPrice)
-        await traces
-          .connect(staker2)
-          .outbid(contractAddress, nftId, currentPrice)
-
-        expect(await traces.getStakedValue(wNFT.tokenId)).to.eq(currentPrice)
-      })
       it('transfers the erc20 custom token back to the user when the same is outbidded', async function () {
         const { traces, owner, tokenData, staker1, staker2, erc20mock } =
           await loadFixture(deployFixture)
@@ -1034,88 +1009,88 @@ describe('Traces functionality', function () {
     })
   })
   describe('dutch auction', async function () {
-    describe('getCurrentPrice()', async function () {
-      it('gets price after half of dutch auction duration', async function () {
-        const fixture = await loadFixture(deployFixture)
-        const { traces } = fixture
-        const latestBlockTimestamp = (await time.latest()) * 1000
-        const tokenDecimal = await traces.customTokenDecimals()
-        const minPrice = tokenDecimal.mul(1)
-        const dutchMultiplier = 9 // 9 - 1
-        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
-          .subtract(2, 'hour')
-          .unix()
-        const duration =
-          dayjs(latestBlockTimestamp).add(4, 'hour').unix() -
-          dayjs(latestBlockTimestamp).unix()
+    // describe('getCurrentPrice()', async function () {
+    //   it('gets price after half of dutch auction duration', async function () {
+    //     const fixture = await loadFixture(deployFixture)
+    //     const { traces } = fixture
+    //     const latestBlockTimestamp = (await time.latest()) * 1000
+    //     const tokenDecimal = await traces.customTokenDecimals()
+    //     const minPrice = tokenDecimal.mul(1)
+    //     const dutchMultiplier = 9 // 9 - 1
+    //     const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+    //       .subtract(2, 'hour')
+    //       .unix()
+    //     const duration =
+    //       dayjs(latestBlockTimestamp).add(4, 'hour').unix() -
+    //       dayjs(latestBlockTimestamp).unix()
 
-        const price = (
-          await traces.getCurrentPrice(
-            minPrice,
-            lastOutbidTimestamp,
-            dutchMultiplier,
-            duration
-          )
-        ).toString()
+    //     const price = (
+    //       await traces.getCurrentPrice(
+    //         minPrice,
+    //         lastOutbidTimestamp,
+    //         dutchMultiplier,
+    //         duration
+    //       )
+    //     ).toString()
 
-        expect(Number(formatUnits(price))).to.eq(5)
-      })
-      it('gets price after 1/3 of dutch auction duration', async function () {
-        const fixture = await loadFixture(deployFixture)
-        const { traces } = fixture
-        const latestBlockTimestamp = (await time.latest()) * 1000
-        const tokenDecimal = await traces.customTokenDecimals()
-        const minPrice = tokenDecimal.mul(1)
-        const dutchMultiplier = 9
-        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
-          .subtract(1, 'hour')
-          .unix()
-        const duration =
-          dayjs(latestBlockTimestamp).add(3, 'hour').unix() -
-          dayjs(latestBlockTimestamp).unix()
+    //     expect(Number(formatUnits(price))).to.eq(5)
+    //   })
+    //   it('gets price after 1/3 of dutch auction duration', async function () {
+    //     const fixture = await loadFixture(deployFixture)
+    //     const { traces } = fixture
+    //     const latestBlockTimestamp = (await time.latest()) * 1000
+    //     const tokenDecimal = await traces.customTokenDecimals()
+    //     const minPrice = tokenDecimal.mul(1)
+    //     const dutchMultiplier = 9
+    //     const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+    //       .subtract(1, 'hour')
+    //       .unix()
+    //     const duration =
+    //       dayjs(latestBlockTimestamp).add(3, 'hour').unix() -
+    //       dayjs(latestBlockTimestamp).unix()
 
-        const price = (
-          await traces.getCurrentPrice(
-            minPrice,
-            lastOutbidTimestamp,
-            dutchMultiplier,
-            duration
-          )
-        ).toString()
-        expect(Number(formatUnits(price))).to.closeTo(6.33, 0.01)
-      })
-      it('gets price limit after 1/2 of dutch auction duration when multiplier is 1', async function () {
-        const fixture = await loadFixture(deployFixture)
-        const { traces } = fixture
-        const latestBlockTimestamp = (await time.latest()) * 1000
-        const tokenDecimal = await traces.customTokenDecimals()
-        const minPrice = tokenDecimal.mul(100)
-        const dutchMultiplier = 1
-        const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
-          .subtract(5, 'hour')
-          .unix()
-        const duration =
-          dayjs(latestBlockTimestamp).add(10, 'hour').unix() -
-          dayjs(latestBlockTimestamp).unix()
+    //     const price = (
+    //       await traces.getCurrentPrice(
+    //         minPrice,
+    //         lastOutbidTimestamp,
+    //         dutchMultiplier,
+    //         duration
+    //       )
+    //     ).toString()
+    //     expect(Number(formatUnits(price))).to.closeTo(6.33, 0.01)
+    //   })
+    //   it('gets price limit after 1/2 of dutch auction duration when multiplier is 1', async function () {
+    //     const fixture = await loadFixture(deployFixture)
+    //     const { traces } = fixture
+    //     const latestBlockTimestamp = (await time.latest()) * 1000
+    //     const tokenDecimal = await traces.customTokenDecimals()
+    //     const minPrice = tokenDecimal.mul(100)
+    //     const dutchMultiplier = 1
+    //     const lastOutbidTimestamp = dayjs(latestBlockTimestamp)
+    //       .subtract(5, 'hour')
+    //       .unix()
+    //     const duration =
+    //       dayjs(latestBlockTimestamp).add(10, 'hour').unix() -
+    //       dayjs(latestBlockTimestamp).unix()
 
-        // console.log(
-        //   minPrice.toString(),
-        //   dutchMultiplier,
-        //   latestBlockTimestamp / 1000,
-        //   lastOutbidTimestamp,
-        //   duration
-        // )
-        const price = (
-          await traces.getCurrentPrice(
-            minPrice,
-            lastOutbidTimestamp,
-            dutchMultiplier,
-            duration
-          )
-        ).toString()
-        expect(Number(formatUnits(price))).to.equal(100)
-      })
-    })
+    //     // console.log(
+    //     //   minPrice.toString(),
+    //     //   dutchMultiplier,
+    //     //   latestBlockTimestamp / 1000,
+    //     //   lastOutbidTimestamp,
+    //     //   duration
+    //     // )
+    //     const price = (
+    //       await traces.getCurrentPrice(
+    //         minPrice,
+    //         lastOutbidTimestamp,
+    //         dutchMultiplier,
+    //         duration
+    //       )
+    //     ).toString()
+    //     expect(Number(formatUnits(price))).to.equal(100)
+    //   })
+    // })
     describe('getWNFTPrice()', async function () {
       it('returns error when wnft is on hold period', async function () {
         const fixture = await loadFixture(deployFixture)

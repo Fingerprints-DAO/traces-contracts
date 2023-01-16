@@ -218,7 +218,7 @@ contract Traces is
     uint256 lastOutbid,
     uint256 minHoldPeriod,
     uint256 dutchAuctionDuration
-  ) public view returns (bool) {
+  ) internal view returns (bool) {
     if (lastOutbid == 0) return false;
     return
       lastOutbid.add(minHoldPeriod).add(dutchAuctionDuration) > block.timestamp;
@@ -228,7 +228,7 @@ contract Traces is
   /// @dev Reverts with TransferNotAllowed error if user has not allowed this contract to move the erc20 tokens
   /// @param _amount amount sent to stake and outbid the wnft
   /// @param _minStake minumum required to stake and outbid the wnft
-  function hasEnoughToStake(uint256 _amount, uint256 _minStake) public view {
+  function hasEnoughToStake(uint256 _amount, uint256 _minStake) internal view {
     uint256 allowedToTransfer = customTokenAddress.allowance(
       msg.sender,
       address(this)
@@ -250,17 +250,6 @@ contract Traces is
   {
     require(_vaultAddress != address(0), 'Vault address cant be 0');
     vaultAddress = _vaultAddress;
-  }
-
-  /// @notice Returns the staked amount of current staked wnft
-  /// @dev It access wnftList to get the wnft data and returns stakedAmount
-  /// @param _tokenId wnft id created by this contract
-  /// @return staked amount
-  function getStakedValue(uint256 _tokenId) external view returns (uint256) {
-    return
-      wnftList[wrappedIdToOgToken[_tokenId].tokenAddress][
-        wrappedIdToOgToken[_tokenId].id
-      ].stakedAmount;
   }
 
   /// @notice Returns the WrappedToken
@@ -290,7 +279,7 @@ contract Traces is
     uint256 lastTimestamp,
     uint256 dutchMultiplier,
     uint256 duration
-  ) public view returns (uint256) {
+  ) internal view returns (uint256) {
     // Auction ended
     if (block.timestamp >= lastTimestamp.add(duration)) return priceLimit;
 
