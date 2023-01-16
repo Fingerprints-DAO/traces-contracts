@@ -1,20 +1,45 @@
 {
   "manifestVersion": "3.2",
   "admin": {
-    "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-    "txHash": "0xb05f7ef485cb1cee94af02a375f54a3c47bfa6f7cd90c7eeb0673cd804b9571c"
+    "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "txHash": "0xa843d01a310a474a9db73a56aaf8203fb695033ae2e3b59b8da14ecf968756ad"
   },
   "proxies": [
     {
+      "address": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+      "txHash": "0xba5b12ff54bd6ccea18ba8e2a1009e97e4430a323220cbcf5e9c1e869ceb8669",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "txHash": "0x066c876fd5e1857b0c72330f584d17de382b31394df149e3015b796b802c54c4",
+      "kind": "transparent"
+    },
+    {
       "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-      "txHash": "0x7932373c495971bc755999c26ff50c5e6365085042deaca4992264b99caf0f67",
+      "txHash": "0x3a09d08f3d30e23eb2a225092152620221b0cc2d3c13e12b2c0938e0bae0ca8b",
+      "kind": "transparent"
+    },
+    {
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "txHash": "0x3ebdea331fac3eac3c8cf4de9937c03e012ea1b4497d1d21eea043fef50fb56a",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "txHash": "0xa513a2347dc653b8e1d25fcb428f628211a997a366b810b6f289ccbf9efdcd41",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "txHash": "0x657c26d2bc63d5ed8e3cbf26b940ba4b99efdfba074fa20685ec38d8c1067497",
       "kind": "transparent"
     }
   ],
   "impls": {
-    "7f88152ee7a902b96f43f9db07844c703a1fb2946c60a138844043e7c8164eec": {
-      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-      "txHash": "0x8892608b5fd38b04d8c8c2cdfbef6278bb51f333c33e83beffdaba99ede29701",
+    "fd6a57f16cbd3c3e471965ed5c39cd3a26bcf180a9c17efbe6e079285a7753a0": {
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "txHash": "0x198c6c67797ef3ed705a3e278c88d686baa60bd936fde3f4cc240729e132620d",
       "layout": {
         "solcVersion": "0.8.17",
         "storage": [
@@ -201,7 +226,7 @@
             "slot": "351",
             "type": "t_string_storage",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:57"
+            "src": "contracts/Traces.sol:129"
           },
           {
             "label": "vaultAddress",
@@ -209,7 +234,7 @@
             "slot": "352",
             "type": "t_address",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:62"
+            "src": "contracts/Traces.sol:134"
           },
           {
             "label": "customTokenAddress",
@@ -217,7 +242,7 @@
             "slot": "353",
             "type": "t_contract(IERC20Upgradeable)855",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:67"
+            "src": "contracts/Traces.sol:139"
           },
           {
             "label": "customTokenDecimals",
@@ -225,31 +250,31 @@
             "slot": "354",
             "type": "t_uint256",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:68"
+            "src": "contracts/Traces.sol:140"
           },
           {
             "label": "wnftList",
             "offset": 0,
             "slot": "355",
-            "type": "t_mapping(t_address,t_mapping(t_uint256,t_struct(WrappedToken)4801_storage))",
+            "type": "t_mapping(t_address,t_mapping(t_uint256,t_struct(WrappedToken)7780_storage))",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:73"
+            "src": "contracts/Traces.sol:145"
           },
           {
             "label": "wrappedIdToOgToken",
             "offset": 0,
             "slot": "356",
-            "type": "t_mapping(t_uint256,t_struct(OgToken)4780_storage)",
+            "type": "t_mapping(t_uint256,t_struct(OgToken)7759_storage)",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:77"
+            "src": "contracts/Traces.sol:149"
           },
           {
             "label": "collection",
             "offset": 0,
             "slot": "357",
-            "type": "t_mapping(t_address,t_struct(CollectionInfo)4808_storage)",
+            "type": "t_mapping(t_address,t_struct(CollectionInfo)7787_storage)",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:82"
+            "src": "contracts/Traces.sol:154"
           },
           {
             "label": "collectionCounter",
@@ -257,7 +282,7 @@
             "slot": "358",
             "type": "t_uint256",
             "contract": "Traces",
-            "src": "contracts/Traces.sol:84"
+            "src": "contracts/Traces.sol:156"
           }
         ],
         "types": {
@@ -305,7 +330,7 @@
             "label": "mapping(address => mapping(address => bool))",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_address,t_mapping(t_uint256,t_struct(WrappedToken)4801_storage))": {
+          "t_mapping(t_address,t_mapping(t_uint256,t_struct(WrappedToken)7780_storage))": {
             "label": "mapping(address => mapping(uint256 => struct Traces.WrappedToken))",
             "numberOfBytes": "32"
           },
@@ -313,7 +338,7 @@
             "label": "mapping(address => mapping(uint256 => uint256))",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_address,t_struct(CollectionInfo)4808_storage)": {
+          "t_mapping(t_address,t_struct(CollectionInfo)7787_storage)": {
             "label": "mapping(address => struct Traces.CollectionInfo)",
             "numberOfBytes": "32"
           },
@@ -329,11 +354,11 @@
             "label": "mapping(uint256 => address)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(OgToken)4780_storage)": {
+          "t_mapping(t_uint256,t_struct(OgToken)7759_storage)": {
             "label": "mapping(uint256 => struct Traces.OgToken)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(WrappedToken)4801_storage)": {
+          "t_mapping(t_uint256,t_struct(WrappedToken)7780_storage)": {
             "label": "mapping(uint256 => struct Traces.WrappedToken)",
             "numberOfBytes": "32"
           },
@@ -345,7 +370,7 @@
             "label": "string",
             "numberOfBytes": "32"
           },
-          "t_struct(CollectionInfo)4808_storage": {
+          "t_struct(CollectionInfo)7787_storage": {
             "label": "struct Traces.CollectionInfo",
             "members": [
               {
@@ -369,7 +394,7 @@
             ],
             "numberOfBytes": "96"
           },
-          "t_struct(OgToken)4780_storage": {
+          "t_struct(OgToken)7759_storage": {
             "label": "struct Traces.OgToken",
             "members": [
               {
@@ -405,7 +430,7 @@
             ],
             "numberOfBytes": "64"
           },
-          "t_struct(WrappedToken)4801_storage": {
+          "t_struct(WrappedToken)7780_storage": {
             "label": "struct Traces.WrappedToken",
             "members": [
               {

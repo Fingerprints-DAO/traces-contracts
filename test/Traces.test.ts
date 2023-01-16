@@ -1,6 +1,6 @@
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
+import { ethers, upgrades } from 'hardhat'
 import faker from 'faker'
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
@@ -35,13 +35,12 @@ describe('Traces basic', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-
-    const traces = await Traces.deploy()
-    await traces.initialize(
-      owner.address,
-      FPVaultAddress,
-      erc20mock.address,
-      baseURI
+    const traces = await upgrades.deployProxy(
+      Traces,
+      [owner.address, FPVaultAddress, erc20mock.address, baseURI],
+      {
+        kind: 'transparent',
+      }
     )
 
     return { traces, deployer, owner, FPVaultAddress, staker1 }
@@ -168,12 +167,12 @@ describe('Traces admin', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-    const traces = await Traces.deploy()
-    await traces.initialize(
-      owner.address,
-      FPVaultAddress,
-      erc20mock.address,
-      baseURI
+    const traces = await upgrades.deployProxy(
+      Traces,
+      [owner.address, FPVaultAddress, erc20mock.address, baseURI],
+      {
+        kind: 'transparent',
+      }
     )
 
     const ERC721Mock = await ethers.getContractFactory('ERC721Mock')
@@ -539,12 +538,12 @@ describe('Traces functionality', function () {
     )
 
     const Traces = await ethers.getContractFactory('Traces')
-    const traces = await Traces.deploy()
-    await traces.initialize(
-      owner.address,
-      FPVaultAddress,
-      erc20mock.address,
-      baseURI
+    const traces = await upgrades.deployProxy(
+      Traces,
+      [owner.address, FPVaultAddress, erc20mock.address, baseURI],
+      {
+        kind: 'transparent',
+      }
     )
 
     const tokenData = generateTokenData({
