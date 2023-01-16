@@ -75,7 +75,12 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
         if (!name || !contract || (contract?.args?.length ?? 0) < 1) continue
 
         let gasPrice = await ethers.provider.getGasPrice()
-        if (!autoDeploy) {
+
+        const factory = await ethers.getContractFactory(name, {
+          libraries: contract?.libraries?.(),
+        })
+
+        if (name !== 'Traces' && !autoDeploy) {
           const gasInGwei = Math.round(
             Number(ethers.utils.formatUnits(gasPrice, 'gwei'))
           )
@@ -96,34 +101,29 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
             },
           ])
           gasPrice = ethers.utils.parseUnits(result.gasPrice.toString(), 'gwei')
-        }
 
-        const factory = await ethers.getContractFactory(name, {
-          libraries: contract?.libraries?.(),
-        })
-
-        const deploymentGas = await factory.signer.estimateGas(
-          factory.getDeployTransaction(
-            ...(contract.args?.map((a) =>
-              typeof a === 'function' ? a() : a
-            ) ?? []),
-            {
-              gasPrice,
-            }
+          const deploymentGas = await factory.signer.estimateGas(
+            factory.getDeployTransaction(
+              ...(contract.args?.map((a) =>
+                typeof a === 'function' ? a() : a
+              ) ?? []),
+              {
+                gasPrice,
+              }
+            )
           )
-        )
-        console.log(`Estimated gas to deploy ${name}: ${deploymentGas}`)
-        const deploymentCost = deploymentGas.mul(gasPrice)
 
-        console.log(
-          `Estimated cost to deploy ${name}: ${ethers.utils.formatUnits(
-            deploymentCost,
-            'ether'
-          )} ETH`
-        )
+          console.log(`Estimated gas to deploy ${name}: ${deploymentGas}`)
+          const deploymentCost = deploymentGas.mul(gasPrice)
 
-        if (!autoDeploy) {
-          const result = await promptjs.get([
+          console.log(
+            `Estimated cost to deploy ${name}: ${ethers.utils.formatUnits(
+              deploymentCost,
+              'ether'
+            )} ETH`
+          )
+
+          const result2 = await promptjs.get([
             {
               properties: {
                 confirm: {
@@ -134,11 +134,11 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
               },
             },
           ])
-          if (result.operation === 'SKIP') {
+          if (result2.operation === 'SKIP') {
             console.log(`Skipping ${name} deployment...`)
             continue
           }
-          if (result.operation === 'EXIT') {
+          if (result2.operation === 'EXIT') {
             console.log('Exiting...')
             return
           }
@@ -147,16 +147,14 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
 
         let deployedContract: EthersContract
         if (name === 'Traces') {
-          console.log('Deploying Traces')
-          const args = contract.args?.map((a) =>
-            typeof a === 'function' ? a() : a
-          )
-          deployedContract = await upgrades.deployProxy(factory, [
-            ...(args ?? []),
+          deployedContract = await upgrades.deployProxy(
+            factory,
+            contract.args?.map((a) => (typeof a === 'function' ? a() : a)) ??
+              [],
             {
-              gasPrice,
-            },
-          ])
+              kind: 'transparent',
+            }
+          )
         } else {
           deployedContract = await factory.deploy(
             ...(contract.args?.map((a) =>
@@ -181,7 +179,7 @@ task('deploy', 'Deploy contracts Traces and ERC20Token($prints)')
         fs.mkdirSync('logs')
       }
       fs.writeFileSync(
-        'logs/deploy.json',
+        `logs/deploy-${network.name}.json`,
         JSON.stringify({
           contractAddresses: {
             ERC20Mock: contracts.ERC20Mock.instance?.address ?? printsAddress,
