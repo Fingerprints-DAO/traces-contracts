@@ -1,11 +1,12 @@
 import { parseUnits } from 'ethers/lib/utils'
 import { task, types } from 'hardhat/config'
+import { contractAddresses } from '../logs/deploy.json'
 
 task('mint-tokens', 'Mints custom tokens')
   .addOptionalParam(
     'erc20Mock',
     'The `Custom erc20` contract address',
-    '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    contractAddresses.ERC20Mock,
     types.string
   )
   .addOptionalParam(

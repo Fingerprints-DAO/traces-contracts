@@ -1,5 +1,5 @@
 import { task, types } from 'hardhat/config'
-import { contractAddresses } from '../logs/deploy.json'
+import { contractAddresses } from '../logs/deploy-goerli.json'
 
 task('add-roles', 'Add admin and editor roles')
   .addOptionalParam(
