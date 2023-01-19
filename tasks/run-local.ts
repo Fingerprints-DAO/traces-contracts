@@ -40,17 +40,17 @@ task(
       qty: 100,
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.instance.address,
+      erc20Mock: contracts.ERC20Mock.instance.address,
       mintTo: deployer.address,
       qty: '100000',
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.instance.address,
+      erc20Mock: contracts.ERC20Mock.instance.address,
       mintTo: bob.address,
       qty: '10000',
     }),
     run('mint-tokens', {
-      erc721Mock: contracts.ERC20Mock.instance.address,
+      erc20Mock: contracts.ERC20Mock.instance.address,
       mintTo: marcia.address,
       qty: '1000',
     }),

@@ -1,5 +1,4 @@
 import { task } from 'hardhat/config'
-import { Interface, parseUnits } from 'ethers/lib/utils'
 import { Contract as EthersContract } from 'ethers'
 
 type LocalContractName = 'ERC20Mock' | 'ERC721Mock' | 'Traces'

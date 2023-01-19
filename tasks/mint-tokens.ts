@@ -20,6 +20,7 @@ task('mint-tokens', 'Mints custom tokens')
     const nftFactory = await ethers.getContractFactory('ERC20Mock')
     const nftContract = nftFactory.attach(erc20Mock)
 
+    console.log(`Erc20 contract address: ${erc20Mock}`)
     await nftContract.mint(mintTo, parseUnits(amount, 18))
 
     console.log(`${amount.toString()} $prints minted to account ${mintTo}`)
