@@ -10,9 +10,6 @@ artifacts
 
 *.code-workspace
 
-# Docs files
-docs
-
 # Dist files
 dist
 node_modules
